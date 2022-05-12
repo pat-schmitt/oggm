@@ -1459,7 +1459,7 @@ class FluxBasedModel(FlowlineModel):
                  flux_gate=None, flux_gate_build_up=100,
                  do_kcalving=None, calving_k=None, calving_use_limiter=None,
                  calving_limiter_frac=None, water_level=None,
-                 **kwargs):
+                 use_lax_wendroff_flux=False, **kwargs):
         """Instantiate the model.
 
         Parameters
@@ -1554,6 +1554,7 @@ class FluxBasedModel(FlowlineModel):
             cfl_number = cfg.PARAMS['cfl_number']
         self.min_dt = min_dt
         self.cfl_number = cfl_number
+        self.use_lax_wendroff_flux = use_lax_wendroff_flux
 
         # Do we want to use shape factors?
         self.sf_func = None
@@ -1722,13 +1723,6 @@ class FluxBasedModel(FlowlineModel):
             section_stag[1:-1] = (section[0:-1] + section[1:]) / 2.
             section_stag[[0, -1]] = section[[0, -1]]
 
-            # Staggered flux rate
-            flux_stag[:] = u_stag * section_stag
-
-            # Add boundary condition
-            if flux_gate is not None:
-                flux_stag[0] = flux_gate(self.yr)
-
             # CFL condition
             if not self.fixed_dt:
                 maxu = np.max(np.abs(u_stag))
@@ -1751,6 +1745,21 @@ class FluxBasedModel(FlowlineModel):
                                       np.argmax(np.abs(u_stag)),
                                       maxu * cfg.SEC_IN_YEAR))
 
+            # Staggered flux rate
+            if self.use_lax_wendroff_flux:
+                a_minus = (u_stag[1:-1] - np.abs(u_stag[1:-1])) / 2
+                a_plus = (u_stag[1:-1] + np.abs(u_stag[1:-1])) / 2
+                a_abs = np.abs(u_stag[1:-1])
+                flux_stag[1:-1] = ((a_minus * section[1:] +
+                                    a_plus * section[0:-1]) +
+                                   a_abs / 2 * (1 - dt / dx * a_abs) *
+                                   (section[1:] - section[0:-1]))
+            else:
+                flux_stag[:] = u_stag * section_stag
+
+            # Add boundary condition
+            if flux_gate is not None:
+                flux_stag[0] = flux_gate(self.yr)
             # Since we are in this loop, reset the tributary flux
             trib_flux[:] = 0
 
