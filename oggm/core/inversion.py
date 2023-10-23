@@ -209,7 +209,7 @@ def sia_thickness_via_optim(slope, width, flux, shape='rectangular',
 
     Returns
     -------
-    the ice thickness (in m)
+    the ice thickness (in m) and used t_lambda if trapezoidal
     """
 
     if len(np.atleast_1d(slope)) > 1:
@@ -244,21 +244,36 @@ def sia_thickness_via_optim(slope, width, flux, shape='rectangular',
     rho = cfg.PARAMS['ice_density']
     rhogh = (rho * cfg.G * slope) ** n
 
-    # To avoid geometrical inconsistencies
-    max_h = width / t_lambda if shape == 'trapezoid' else 1e4
-
     def to_minimize(h):
         u = (h ** (n + 1)) * fd * rhogh + (h ** (n - 1)) * fs * rhogh
         if shape == 'parabolic':
             sect = 2./3. * width * h
         elif shape == 'trapezoid':
-            w0m = width - t_lambda * h
+            w0m = width - t_lambda_use * h
             sect = (width + w0m) / 2 * h
         else:
             sect = width * h
         return sect * u - flux
-    out_h, r = optimize.brentq(to_minimize, 0, max_h, full_output=True)
-    return out_h
+
+    if shape == 'trapezoid':
+        for t_lambda_use in np.arange(t_lambda, 0, -0.1):
+            # To avoid geometrical inconsistencies of negative bottom width
+            max_h = width / t_lambda_use if shape == 'trapezoid' else 1e4
+            try:
+                out_h, r = optimize.brentq(to_minimize, 0, max_h,
+                                           full_output=True)
+                return out_h, t_lambda_use
+            except ValueError:
+                # try to use smaller lambda to increase max_h in next iteration
+                if t_lambda_use >= 0.1:
+                    continue
+                else:
+                    raise
+
+    else:
+        max_h = 1e4
+        out_h, r = optimize.brentq(to_minimize, 0, max_h, full_output=True)
+        return out_h
 
 
 def sia_thickness(slope, width, flux, shape='rectangular',
@@ -416,6 +431,9 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
         # Glacier width
         w = cl['width']
 
+        # trapezoidal lambdas
+        lambdas = cl['width'] * np.NaN
+
         a0s = - cl['flux_a0'] / ((rho*cfg.G*slope)**3*fd)
 
         out_thick = _compute_thick(a0s, a3, cl['flux_a0'], _inv_function)
@@ -434,13 +452,10 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
                        (cl['flux'] > 0)) | is_trap
             for i in np.where(is_trap)[0]:
                 try:
-                    out_thick[i] = sia_thickness_via_optim(slope[i], w[i],
-                                                           cl['flux'][i],
-                                                           shape='trapezoid',
-                                                           t_lambda=t_lambda,
-                                                           glen_a=glen_a,
-                                                           fs=fs)
-                    sect = (2*w[i] - t_lambda * out_thick[i]) / 2 * out_thick[i]
+                    out_thick[i], lambdas[i] = sia_thickness_via_optim(
+                        slope[i], w[i], cl['flux'][i], shape='trapezoid',
+                        t_lambda=t_lambda, glen_a=glen_a, fs=fs)
+                    sect = (2*w[i] - lambdas[i] * out_thick[i]) / 2 * out_thick[i]
                     volume[i] = sect * cl['dx']
                 except ValueError:
                     # no solution error - we do with rect
@@ -450,6 +465,7 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
                                                            glen_a=glen_a,
                                                            fs=fs)
                     is_rect[i] = True
+                    lambdas[i] = 0
                     is_trap[i] = False
                     volume[i] = out_thick[i] * w[i] * cl['dx']
 
@@ -464,6 +480,7 @@ def mass_conservation_inversion(gdir, glen_a=None, fs=None, write=True,
         if write:
             cl['is_trapezoid'] = is_trap
             cl['is_rectangular'] = is_rect
+            cl['lambdas'] = lambdas
             cl['thick'] = out_thick
             cl['volume'] = volume
 

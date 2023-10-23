@@ -3034,9 +3034,12 @@ def init_present_time_glacier(gdir, filesuffix=''):
         assert np.all(widths_m > 0)
         bed_shape = 4 * inv['thick'] / (cl.widths * map_dx) ** 2
 
-        lambdas = inv['thick'] * np.NaN
-        lambdas[inv['is_trapezoid']] = def_lambda
-        lambdas[inv['is_rectangular']] = 0.
+        if 'lambdas' in inv:
+            lambdas = inv['lambdas']
+        else:
+            lambdas = inv['thick'] * np.NaN
+            lambdas[inv['is_trapezoid']] = def_lambda
+            lambdas[inv['is_rectangular']] = 0.
 
         # Where the flux and the thickness is zero we just assume trapezoid:
         lambdas[bed_shape == 0] = def_lambda
