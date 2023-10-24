@@ -2154,10 +2154,11 @@ class TestIdealisedInversion():
         slope = - np.gradient(fl.surface_h[pg], fl.dx_meter)
         est_ho = inversion.sia_thickness_via_optim(slope, fl.widths_m[pg],
                                                    flux, shape='trapezoid')
+
         mod_h = fl.thick[pg]
 
         # Test in the middle where slope is not too important
-        assert_allclose(est_ho[25:75], mod_h[25:75], rtol=0.01)
+        assert_allclose(est_ho[25:75, 0], mod_h[25:75], rtol=0.01)
 
         if do_plot:  # pragma: no cover
             plt.plot(mod_h)
