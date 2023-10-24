@@ -256,7 +256,10 @@ def sia_thickness_via_optim(slope, width, flux, shape='rectangular',
         return sect * u - flux
 
     if shape == 'trapezoid':
-        for t_lambda_use in np.arange(t_lambda, 0, -0.1):
+        # try to find smaller lambda to avoid potential inconsistencies,
+        # only used if cfg.PARAMS['trapezoid_lambdas_adaptive'] = True
+        lambdas_to_test = np.arange(t_lambda, 0, -0.1)
+        for t_lambda_use in lambdas_to_test:
             # To avoid geometrical inconsistencies of negative bottom width
             max_h = width / t_lambda_use if shape == 'trapezoid' else 1e4
             try:
@@ -264,8 +267,10 @@ def sia_thickness_via_optim(slope, width, flux, shape='rectangular',
                                            full_output=True)
                 return out_h, t_lambda_use
             except ValueError:
-                # try to use smaller lambda to increase max_h in next iteration
-                if t_lambda_use >= 0.1:
+                if not cfg.PARAMS['trapezoid_lambdas_adaptive']:
+                    raise
+                if t_lambda_use > lambdas_to_test[-1]:
+                    # continue as long as we are not at the last lambda to try
                     continue
                 else:
                     raise

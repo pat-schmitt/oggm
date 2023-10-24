@@ -522,6 +522,7 @@ def initialize_minimal(file=None, logging_level='INFO', params=None,
     PARAMS[k] = cp.as_bool(k)
     PARAMS['store_model_geometry'] = cp.as_bool('store_model_geometry')
     PARAMS['store_fl_diagnostics'] = cp.as_bool('store_fl_diagnostics')
+    PARAMS['trapezoid_lambdas_adaptive'] = cp.as_bool('trapezoid_lambdas_adaptive')
 
     # Climate
     PARAMS['baseline_climate'] = cp['baseline_climate'].strip().upper()
@@ -582,7 +583,8 @@ def initialize_minimal(file=None, logging_level='INFO', params=None,
            'tidewater_type', 'store_model_geometry', 'use_winter_prcp_fac',
            'store_diagnostic_variables', 'store_fl_diagnostic_variables',
            'geodetic_mb_period', 'store_fl_diagnostics', 'winter_prcp_fac_ab',
-           'prcp_fac', 'downstream_line_shape', 'keep_multipolygon_outlines']
+           'prcp_fac', 'downstream_line_shape', 'keep_multipolygon_outlines',
+           'trapezoid_lambdas_adaptive']
     for k in ltr:
         cp.pop(k, None)
 
