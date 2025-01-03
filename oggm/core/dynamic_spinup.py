@@ -812,12 +812,12 @@ def run_dynamic_spinup(gdir, init_model_filesuffix=None, init_model_yr=None,
     for spinup_period in spinup_periods_to_try:
         yr_spinup = target_yr - spinup_period
 
+        y0_spinup = (yr_spinup + target_yr) / 2
+        halfsize_spinup = target_yr - y0_spinup
         if not provided_mb_model_spinup:
             # define spinup MassBalance
             # spinup is running for 'target_yr - yr_spinup' years, using a
             # ConstantMassBalance
-            y0_spinup = (yr_spinup + target_yr) / 2
-            halfsize_spinup = target_yr - y0_spinup
             mb_model_spinup = MultipleFlowlineMassBalance(
                 gdir, mb_model_class=ConstantMassBalance,
                 filename='climate_historical',
@@ -1143,6 +1143,8 @@ def dynamic_melt_f_run_with_dynamic_spinup(
         do_inversion = False
     else:
         define_new_melt_f_in_gdir(gdir, melt_f)
+        if mb_model_historical is not None:
+            mb_model_historical.melt_f = melt_f
 
     if do_inversion:
         with utils.DisableLogger():
@@ -1366,6 +1368,8 @@ def dynamic_melt_f_run_with_dynamic_spinup_fallback(
     # revert gdir to original state if necessary
     if melt_f != gdir.read_json('mb_calib')['melt_f']:
         define_new_melt_f_in_gdir(gdir, melt_f)
+        if mb_model_historical is not None:
+            mb_model_historical.melt_f = melt_f
         if do_inversion:
             with utils.DisableLogger():
                 apparent_mb_from_any_mb(gdir,
@@ -1626,8 +1630,9 @@ def dynamic_melt_f_run_fallback(
 @entity_task(log, writes=['inversion_flowlines'])
 def run_dynamic_melt_f_calibration(
         gdir, ref_dmdtda=None, err_ref_dmdtda=None, err_dmdtda_scaling_factor=1,
-        ref_period='', melt_f_min=None,
-        melt_f_max=None, melt_f_max_step_length_minimum=0.1, maxiter=20,
+        ref_period='', melt_f_initial=None, melt_f_min=None,
+        melt_f_max=None, melt_f_max_step_length_minimum=0.1,
+        second_guess_step=None, maxiter=20,
         ignore_errors=False, output_filesuffix='_dynamic_melt_f',
         ys=None, ye=None, target_yr=None,
         run_function=dynamic_melt_f_run_with_dynamic_spinup,
@@ -1683,6 +1688,9 @@ def run_dynamic_melt_f_calibration(
         '2010-01-01_2020-01-01', '2000-01-01_2020-01-01'. If ref_dmdtda is
         set, this should still match the same format but can be any date.
         Default is '' (-> PARAMS['geodetic_mb_period'])
+    melt_f_initial : float or None
+        The first guess for the melt factor.
+        Default is None (-> mb_calib['melt_f'])
     melt_f_min : float or None
         Lower absolute limit for melt_f.
         Default is None (-> cfg.PARAMS['melt_f_min'])
@@ -1694,6 +1702,9 @@ def run_dynamic_melt_f_calibration(
         maximum step length is needed to avoid too large steps, which likely
         lead to an error.
         Default is 0.1
+    second_guess_step : float or None
+        How much melt_f_inital  should be changed for the second guess. The
+        direction is defined by the sign of the mismatch using melt_f_initial.
     maxiter : int
         Maximum number of minimisation iterations of minimising mismatch to
         dmdtda by changing melt_f. Each of this iterations conduct a complete
@@ -1855,7 +1866,8 @@ def run_dynamic_melt_f_calibration(
 
     # save original melt_f for later to be able to recreate original gdir
     # (using the fallback function) if an error occurs
-    melt_f_initial = gdir.read_json('mb_calib')['melt_f']
+    if melt_f_initial is None:
+        melt_f_initial = gdir.read_json('mb_calib')['melt_f']
 
     # define maximum allowed change of melt_f between two iterations. Is needed
     # to avoid to large changes (=likely lead to an error). It is defined in a
@@ -1973,7 +1985,8 @@ def run_dynamic_melt_f_calibration(
         return c_fun, model_dynamic_spinup_end
 
     # Here start with own spline minimisation algorithm
-    def minimise_with_spline_fit(fct_to_minimise, melt_f_guess, mismatch):
+    def minimise_with_spline_fit(fct_to_minimise, melt_f_guess, mismatch,
+                                 second_guess_step=second_guess_step):
         # defines limits of melt_f in accordance to maximal allowed change
         # between iterations
         melt_f_limits = [max(melt_f_initial - melt_f_max_step_length,
@@ -2152,10 +2165,14 @@ def run_dynamic_melt_f_calibration(
         # an absolute change of 0.02 is imposed to prevent too close guesses).
         # (-1) as if mismatch is negative we need a larger melt_f to get closer
         # to 0.
-        step = (-1) * np.sign(mismatch[-1]) * \
-            max((np.abs(mismatch[-1]) - err_ref_dmdtda) / err_ref_dmdtda *
-                melt_f_max_step_length, 0.02)
-        new_mismatch, new_melt_f = get_mismatch(melt_f_guess[0] + step)
+        if second_guess_step is None:
+            second_guess_step_inner = (-1) * np.sign(mismatch[-1]) * \
+                max((np.abs(mismatch[-1]) - err_ref_dmdtda) / err_ref_dmdtda *
+                    melt_f_max_step_length, 0.02)
+        else:
+            second_guess_step_inner = (-1) * np.sign(mismatch[-1]) * second_guess_step
+        new_mismatch, new_melt_f = get_mismatch(melt_f_guess[0] +
+                                                second_guess_step_inner)
         melt_f_guess.append(new_melt_f)
         mismatch.append(new_mismatch)
 
