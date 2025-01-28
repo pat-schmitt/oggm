@@ -31,6 +31,7 @@ def run_dynamic_spinup(gdir, init_model_filesuffix=None, init_model_yr=None,
                        init_model_fls=None,
                        climate_input_filesuffix='',
                        evolution_model=None,
+                       ignore_warnings=False,
                        mb_model_historical=None, mb_model_spinup=None,
                        spinup_period=20, spinup_start_yr=None,
                        min_spinup_period=10, spinup_start_yr_max=None,
@@ -71,6 +72,10 @@ def run_dynamic_spinup(gdir, init_model_filesuffix=None, init_model_yr=None,
     evolution_model : :class:oggm.core.FlowlineModel
         which evolution model to use. Default: cfg.PARAMS['evolution_model']
         Not all models work in all circumstances!
+    ignore_warnings : bool
+        Their are some errors raised, for things which are untested. If you know
+        what you are doing you can ignore these warning be setting it to True.
+        Default is False.
     mb_model_historical : :py:class:`core.MassBalanceModel`
         User-povided MassBalanceModel instance for the historical run. Default
         is to use a MonthlyTIModel model  together with the provided
@@ -296,11 +301,11 @@ def run_dynamic_spinup(gdir, init_model_filesuffix=None, init_model_yr=None,
     kwargs.setdefault('glen_a', glen_a)
 
     mb_elev_feedback = kwargs.get('mb_elev_feedback', 'annual')
-    if mb_elev_feedback != 'annual':
+    if mb_elev_feedback != 'annual' and not ignore_warnings:
         raise InvalidParamsError('Only use annual mb_elev_feedback with the '
                                  'dynamic spinup function!')
 
-    if cfg.PARAMS['use_kcalving_for_run']:
+    if cfg.PARAMS['use_kcalving_for_run'] and not ignore_warnings:
         raise InvalidParamsError('Dynamic spinup not tested with '
                                  "cfg.PARAMS['use_kcalving_for_run'] is `True`!")
 
