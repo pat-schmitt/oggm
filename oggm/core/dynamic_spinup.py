@@ -44,7 +44,9 @@ def run_dynamic_spinup(gdir, init_model_filesuffix=None, init_model_yr=None,
                        store_model_evolution=True, ignore_errors=False,
                        return_t_spinup_best=False, ye=None,
                        model_flowline_filesuffix='',
-                       add_fixed_geometry_spinup=False, **kwargs):
+                       add_fixed_geometry_spinup=False,
+                       store_monthly_step=None,
+                       **kwargs):
     """Dynamically spinup the glacier to match area or volume at the RGI date.
 
     This task allows to do simulations in the recent past (before the glacier
@@ -171,6 +173,9 @@ def run_dynamic_spinup(gdir, init_model_filesuffix=None, init_model_yr=None,
         during the dynamic spinup occurs the stored model evolution is only one
         year long)
         Default is True
+    store_monthly_step: bool | None
+        if you want to store the monthly step. See
+        FlowlineModel.run_until_and_store. Default is None
     ignore_errors : bool
         If True the function saves the model without a dynamic spinup using
         the 'output_filesuffix', if an error during the dynamic spinup occurs.
@@ -331,7 +336,9 @@ def run_dynamic_spinup(gdir, init_model_filesuffix=None, init_model_yr=None,
                 yr_run,
                 geom_path=geom_path,
                 diag_path=diag_path,
-                fl_diag_path=fl_diag_path)
+                fl_diag_path=fl_diag_path,
+                store_monthly_step=store_monthly_step,
+            )
 
         return model_dynamic_spinup_end
 
@@ -432,7 +439,9 @@ def run_dynamic_spinup(gdir, init_model_filesuffix=None, init_model_yr=None,
                 diag_path=diag_path,
                 fl_diag_path=fl_diag_path,
                 dynamic_spinup_min_ice_thick=min_ice_thickness,
-                fixed_geometry_spinup_yr=fixed_geometry_spinup_yr)
+                fixed_geometry_spinup_yr=fixed_geometry_spinup_yr,
+                store_monthly_step=store_monthly_step,
+            )
 
             # now we delete the min_h variable again if it was not
             # included before (inplace)
@@ -894,7 +903,9 @@ def run_dynamic_spinup(gdir, init_model_filesuffix=None, init_model_yr=None,
                 target_yr,
                 geom_path=geom_path,
                 diag_path=diag_path,
-                fl_diag_path=fl_diag_path, )
+                fl_diag_path=fl_diag_path,
+                store_monthly_step=store_monthly_step,
+            )
 
     if return_t_spinup_best:
         return model_dynamic_spinup_end[-1], final_t_spinup_guess[-1]
