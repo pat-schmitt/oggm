@@ -1149,6 +1149,7 @@ def dynamic_melt_f_run_with_dynamic_spinup(
     if do_inversion:
         with utils.DisableLogger():
             apparent_mb_from_any_mb(gdir,
+                                    mb_model=mb_model_historical,
                                     add_to_log_file=False,  # dont write to log
                                     )
             # do inversion with A calibration to current volume
