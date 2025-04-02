@@ -259,6 +259,7 @@ def run_dynamic_spinup(gdir, init_model_filesuffix=None, init_model_yr=None,
     if mb_model_historical is None:
         mb_model_historical = MultipleFlowlineMassBalance(
             gdir, mb_model_class=MonthlyTIModel,
+            fls=fls_spinup,
             filename='climate_historical',
             input_filesuffix=climate_input_filesuffix)
 
