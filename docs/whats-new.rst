@@ -34,18 +34,11 @@ Enhancements
   it's just a placeholder (:pull:`1757`).
   By `Dan Goldberg <https://github.com/dngoldberg>`_ and
   `Fabien Maussion <https://github.com/fmaussion>`_.
-- Refactored mass balance functions ``get_specific_mb`` and``get_ela``. These
-  are no longer recursive and have been optimised for performance (:pull:`1767`).
-  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
 - Added support for processing GSWP3+W5E5 and W5E5 data in ``oggm.shop`` at
-  a daily resolution (:pull:`1769`).
-  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
-- Added daily temperature index model ``DailyTIModel``, refactored
-  ``MonthlyTIModel``, and parametrised tests. Please note that other OGGM
-  features may not yet fully support daily resolution data (:pull:`1769`).
+  a daily resolution (:pull:`1800`).
   By `Nicolas Gampierakis <https://github.com/gampnico>`_.
 - Added type aliases to autodocs which allows Sphinx to recognise OGGM classes
-  (:pull:`1769`).
+  (:pull:`1800`).
   By `Nicolas Gampierakis <https://github.com/gampnico>`_.
 - Added the ability to use an incomplete version of the full params.cfg file
   to override some default parameter values. This can be done by providing the
@@ -57,12 +50,40 @@ Enhancements
 - New standard glacier directories now use a new reference lookup
   table to decide on the topo data to use (:pull:`1781`).
   By `Fabien Maussion <https://github.com/fmaussion>`_
-- Added the possibility to provide a custom grid  in
+- Added the possibility to provide a custom grid  in 
   ``workflow.merge_gridded_data``. If no grid is provided, the default is to
   merge all grids of the provided gdirs (:pull:`1779`).
   By `Patrick Schmitt <https://github.com/pat-schmitt>`_
-- Fixed ``TimeoutError`` when running tests when urlopen hangs on DNS lookup (:pull:`1813`).
-  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
+- Flowlines shapefiles output now have more attributes and are easier to
+  use (:pull:`1786`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+- Flowline diagnostic variables can now be saved with a monthly resolution.
+  With this the unit of some variables depends on the requested resolution.
+  To reflect this the correct unit is stored in the attributes of the variables
+  and the following variable names were changed: ``dhdt_myr`` -> ``dhdt``,
+  ``climatic_mb_myr`` -> ``climatic_mb`` and ``flux_divergence_myr`` ->
+  ``flux_divergence`` (:pull:`1792`).
+  By `Patrick Schmitt <https://github.com/pat-schmitt>`_
+- New `workflow.invert_from_params` task which allows to specify which (regional)
+  glen A and sliding parameters to use. This is useful if you don't have any
+  data to calibrate to (:pull:`1816`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+- Many additions to the `prepro_levels` routine to accomodate the many additions
+  to the glacier directories (RGI7, new climate data, etc.), as well as exporting
+  geotiffs of ice thickness fields, etc. (:pull:`1816`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+- New precipitation correction factors for ERA5 data and bias files according to the
+  new glacier directories in OGGM 1.6.3. (:pull:`1816`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+- New `calibrate_inversion_from_volume` which is the entity task version of
+  `calibrate_inversion_from_consensus`. It finds the "best Glen A" to match
+  the reference volume for a single glacier. (:pull:`1816`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+- Added a new way to calibrate the mass balance model with MB
+  timeseries (:pull:`1827`).
+  By `Chloe Hancock <https://github.com/chloe-hancock>`_
+
+
 Bug fixes
 ~~~~~~~~~
 

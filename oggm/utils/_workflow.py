@@ -650,6 +650,22 @@ def get_ref_mb_glaciers(gdirs, y0=None, y1=None):
     return ref_gdirs
 
 
+def get_rgi70C_year(rgi_id):
+    """Temporary function to fetch the rgi outline year for RGI70C ids.
+    """
+
+    key = 'RGI70C_rgi_year'
+    if key not in cfg.DATA:
+        from oggm.utils._downloads import file_downloader
+        fp = file_downloader('https://cluster.klima.uni-bremen.de/~oggm/'
+                             'ref_mb_params/oggm_v1.6/inv_rgi7/'
+                             'rgi7c_rgi_year_2025.1.csv')
+
+        cfg.DATA[key] = pd.read_csv(fp, index_col=0)['rgi_year']
+
+    return int(cfg.DATA[key].loc[rgi_id])
+
+
 def _chaikins_corner_cutting(line, refinements=5):
     """Some magic here.
 
@@ -717,26 +733,28 @@ def get_centerline_lonlat(gdir,
         if keep_main_only and mm == 0:
             continue
         if corrected_widths_output:
-            le_segment = np.rint(np.max(cl.dis_on_line) * gdir.grid.dx)
-            for wi, cur, (n1, n2), wi_m in zip(cl.widths, cl.line.coords,
-                                               cl.normals, cl.widths_m):
+            dis_on_line = cl.dis_on_line * gdir.grid.dx
+            for wi, cur, (n1, n2), wi_m, d in zip(cl.widths, cl.line.coords,
+                                                  cl.normals, cl.widths_m,
+                                                  dis_on_line):
                 _l = shpg.LineString([shpg.Point(cur + wi / 2. * n1),
                                       shpg.Point(cur + wi / 2. * n2)])
                 gs = dict()
                 gs['RGIID'] = gdir.rgi_id
                 gs['SEGMENT_ID'] = j
-                gs['LE_SEGMENT'] = le_segment
+                gs['DISONLINE'] = d
                 gs['MAIN'] = mm
                 gs['WIDTH_m'] = wi_m
                 gs['geometry'] = shp_trafo(tra_func, _l)
                 olist.append(gs)
         elif geometrical_widths_output:
-            le_segment = np.rint(np.max(cl.dis_on_line) * gdir.grid.dx)
-            for _l, wi_m in zip(cl.geometrical_widths, cl.widths_m):
+            dis_on_line = cl.dis_on_line * gdir.grid.dx
+            for _l, d in zip(cl.geometrical_widths, dis_on_line):
+                wi_m = _l.length * gdir.grid.dx
                 gs = dict()
                 gs['RGIID'] = gdir.rgi_id
                 gs['SEGMENT_ID'] = j
-                gs['LE_SEGMENT'] = le_segment
+                gs['DISONLINE'] = d
                 gs['MAIN'] = mm
                 gs['WIDTH_m'] = wi_m
                 gs['geometry'] = shp_trafo(tra_func, _l)
@@ -888,7 +906,7 @@ def write_centerlines_to_shape(gdirs, *, path=True, to_tar=False,
         A good first value to test is 3.
     simplify_line_after : float
         apply shapely's `simplify` method to the line *after* corner cutting.
-        This is to reduce the size of the geometeries after they have been
+        This is to reduce the size of the geometries after they have been
         smoothed. The default value of 0 is fine if you use corner cutting less
         than 4. Otherwize try a small number, like 0.05 or 0.1.
     """
@@ -2860,7 +2878,8 @@ class GlacierDirectory(object):
 
         if is_glacier_complex:
             rgi_entity['glac_name'] = ''
-            rgi_entity['src_date'] = '2000-01-01 00:00:00'
+            rgi_year = get_rgi70C_year(self.rgi_id)
+            rgi_entity['src_date'] = f'{rgi_year}-01-01 00:00:00'
             if 'dem_source' not in rgi_entity:
                 rgi_entity['dem_source'] = None
             rgi_entity['term_type'] = 9
@@ -2997,6 +3016,10 @@ class GlacierDirectory(object):
         rgi_date = int(rgi_datestr[0:4])
         if rgi_date < 0:
             rgi_date = RGI_DATE[self.rgi_region]
+        if rgi_date >= 2020:
+            log.warning(f'{self.rgi_id}: rgi_date {rgi_date} modified '
+                        'to 2019 for workflow reasons.')
+            rgi_date = 2019
         self.rgi_date = rgi_date
 
         # logging file
@@ -4122,8 +4145,8 @@ def copy_to_basedir(gdir, base_dir=None, setup='run'):
     New glacier directories from the copied folders
     """
     base_dir = os.path.abspath(base_dir)
-    new_dir = os.path.join(base_dir, gdir.rgi_id[:8], gdir.rgi_id[:11],
-                           gdir.rgi_id)
+    new_dir = os.path.join(base_dir, gdir.rgi_id[:-6],
+                           gdir.rgi_id[:-3], gdir.rgi_id)
     if setup == 'run':
         paths = ['model_flowlines', 'inversion_params', 'outlines',
                  'settings', 'climate_historical', 'glacier_grid',
