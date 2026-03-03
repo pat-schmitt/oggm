@@ -799,7 +799,7 @@ def distribute_thickness_per_altitude(gdir, settings_filesuffix='',
                                       input_filesuffix='',
                                       add_slope=True,
                                       topo_variable='topo_smoothed',
-                                      smooth_radius=None,
+                                      smooth_radius=0,
                                       dis_from_border_exp=0.25,
                                       varname_suffix=''):
     """Compute a thickness map by redistributing mass along altitudinal bands.
@@ -823,7 +823,7 @@ def distribute_thickness_per_altitude(gdir, settings_filesuffix='',
         the topography to read from `gridded_data.nc` (could be smoothed, or
         smoothed differently).
     smooth_radius : int
-        pixel size of the gaussian smoothing. Default is to use
+        pixel size of the gaussian smoothing. None is to use
         gdir.settings['smooth_window'] (i.e. a size in meters). Set to zero to
         suppress smoothing.
     dis_from_border_exp : float
@@ -922,10 +922,10 @@ def distribute_thickness_per_altitude(gdir, settings_filesuffix='',
         if vn in nc.variables:
             v = nc.variables[vn]
         else:
-            v = nc.createVariable(vn, 'f4', ('y', 'x', ), zlib=True)
+            v = nc.createVariable(vn, 'f4', ('y', 'x', ), zlib=True, fill_value=np.nan)
         v.units = '-'
         v.long_name = 'Distributed ice thickness'
-        v[:] = thick
+        v[:] = thick.astype(np.float32)
 
     return thick
 
@@ -1034,10 +1034,10 @@ def distribute_thickness_interp(gdir, settings_filesuffix='',
         if vn in nc.variables:
             v = nc.variables[vn]
         else:
-            v = nc.createVariable(vn, 'f4', ('y', 'x', ), zlib=True)
+            v = nc.createVariable(vn, 'f4', ('y', 'x', ), zlib=True, fill_value=np.nan)
         v.units = '-'
         v.long_name = 'Distributed ice thickness'
-        v[:] = thick
+        v[:] = thick.astype(np.float32)
 
     return thick
 

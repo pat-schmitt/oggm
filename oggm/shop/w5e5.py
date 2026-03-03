@@ -20,19 +20,19 @@ log = logging.getLogger(__name__)
 
 GSWP3_W5E5_SERVER = 'https://cluster.klima.uni-bremen.de/~oggm/climate/'
 
-_base = 'gswp3-w5e5/flattened/2023.2/'
+_base = 'gswp3-w5e5/flattened/2025.11.25/'
 
 BASENAMES = {
     'GSWP3_W5E5': {
-        'inv': f'{_base}monthly/gswp3-w5e5_glacier_invariant_flat.nc',
-        'tmp': f'{_base}monthly/gswp3-w5e5_obsclim_tas_global_monthly_1901_2019_flat_glaciers.nc',
-        'temp_std': f'{_base}monthly/gswp3-w5e5_obsclim_temp_std_global_monthly_1901_2019_flat_glaciers.nc',
-        'prcp': f'{_base}monthly/gswp3-w5e5_obsclim_pr_global_monthly_1901_2019_flat_glaciers.nc'
+        'inv': f'{_base}monthly/gswp3-w5e5_glacier_invariant_flat_v2025.11.25.nc',
+        'tmp': f'{_base}monthly/gswp3-w5e5_obsclim_tas_global_monthly_1901_2019_flat_glaciers_v2025.11.25.nc',
+        'temp_std': f'{_base}monthly/gswp3-w5e5_obsclim_temp_std_global_monthly_1901_2019_flat_glaciers_v2025.11.25.nc',
+        'prcp': f'{_base}monthly/gswp3-w5e5_obsclim_pr_global_monthly_1901_2019_flat_glaciers_v2025.11.25.nc'
     },
     'GSWP3_W5E5_daily': {
-        'inv': f'{_base}daily/gswp3-w5e5_glacier_invariant_flat.nc',
-        'tmp': f'{_base}daily/gswp3-w5e5_obsclim_tas_global_daily_1901_2019_flat_glaciers.nc',
-        'prcp': f'{_base}daily/gswp3-w5e5_obsclim_pr_global_daily_1901_2019_flat_glaciers.nc',
+        'inv': f'{_base}daily/gswp3-w5e5_glacier_invariant_flat_v2025.11.25.nc',
+        'tmp': f'{_base}daily/gswp3-w5e5_obsclim_tas_global_daily_1901_2019_flat_glaciers_v2025.11.25.nc',
+        'prcp': f'{_base}daily/gswp3-w5e5_obsclim_pr_global_daily_1901_2019_flat_glaciers_v2025.11.25.nc',
     }
 }
 
@@ -116,7 +116,12 @@ def process_gswp3_w5e5_data(gdir, settings_filesuffix='',
     # would go faster with only netCDF -.-, but easier with xarray
     # first temperature dataset
     with xr.open_dataset(path_tmp) as ds:
-        assert ds.longitude.min() >= 0
+        # sanity checks, safeguarding for unwanted future side effects
+        # we do it only for temp and assume no mistake on the data prep side
+        info = utils.climate_file_info(ds)
+        assert info['lon_bounds'][0] >= 0
+        assert info['is_flat']
+
         yrs = ds['time.year'].data
         y0 = yrs[0] if y0 is None else y0
         y1 = yrs[-1] if y1 is None else y1
@@ -133,9 +138,9 @@ def process_gswp3_w5e5_data(gdir, settings_filesuffix='',
         ds = utils.get_closest_grid_point_of_dataset(
             dataset=ds, latitude=lat, longitude=lon)
 
-        # because of the flattening, there is no time dependence of lon and lat anymore!
-        ds['longitude'] = ds.longitude  # .isel(time=0)
-        ds['latitude'] = ds.latitude  # .isel(time=0)
+        # Fetch lon and lat
+        ds['longitude'] = ds.longitude
+        ds['latitude'] = ds.latitude
 
         # temperature should be in degree Celsius for the glacier climate files
         temp = ds[tvar].data - 273.15
@@ -148,7 +153,6 @@ def process_gswp3_w5e5_data(gdir, settings_filesuffix='',
 
     # precipitation: similar as temperature
     with xr.open_dataset(path_prcp) as ds:
-        assert ds.longitude.min() >= 0
 
         # here we take the same y0 and y1 as given from the
         # temperature dataset
@@ -166,7 +170,6 @@ def process_gswp3_w5e5_data(gdir, settings_filesuffix='',
 
     # w5e5 invariant file
     with xr.open_dataset(path_inv) as ds:
-        assert ds.longitude.min() >= 0
         ds = ds.isel(time=0)
         ds = utils.get_closest_grid_point_of_dataset(
             dataset=ds, latitude=lat, longitude=lon)

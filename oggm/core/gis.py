@@ -1160,6 +1160,12 @@ def compute_hypsometry_attributes(gdir, min_perc=0.2):
     gdir : :py:class:`oggm.GlacierDirectory`
         where to write the data
     """
+
+    # First things first - delete hypsometry file
+    hypso_path = gdir.get_filepath('hypsometry')
+    if os.path.exists(hypso_path):
+        os.remove(hypso_path)
+
     dem = read_geotiff_dem(gdir)
 
     # This is the very robust way
@@ -1252,7 +1258,7 @@ def compute_hypsometry_attributes(gdir, min_perc=0.2):
     df['dem_source'] = [gdir.get_diagnostics()['dem_source']]
     for b, bs in zip(hi, (bins[1:] + bins[:-1])/2):
         df['{}'.format(np.round(bs).astype(int))] = [b]
-    df.to_csv(gdir.get_filepath('hypsometry'), index=False)
+    df.to_csv(hypso_path, index=False)
 
 
 @entity_task(log, writes=['glacier_mask'])
@@ -1470,37 +1476,37 @@ def gridded_attributes(gdir):
         if vn in nc.variables:
             v = nc.variables[vn]
         else:
-            v = nc.createVariable(vn, 'f4', ('y', 'x', ))
+            v = nc.createVariable(vn, 'f4', ('y', 'x', ), zlib=True, fill_value=np.nan)
         v.units = 'rad'
         v.long_name = 'Local slope based on smoothed topography'
-        v[:] = slope
+        v[:] = slope.astype(np.float32)
 
         vn = 'aspect'
         if vn in nc.variables:
             v = nc.variables[vn]
         else:
-            v = nc.createVariable(vn, 'f4', ('y', 'x', ))
+            v = nc.createVariable(vn, 'f4', ('y', 'x', ), zlib=True, fill_value=np.nan)
         v.units = 'rad'
         v.long_name = 'Local aspect based on smoothed topography'
-        v[:] = aspect
+        v[:] = aspect.astype(np.float32)
 
         vn = 'slope_factor'
         if vn in nc.variables:
             v = nc.variables[vn]
         else:
-            v = nc.createVariable(vn, 'f4', ('y', 'x', ))
+            v = nc.createVariable(vn, 'f4', ('y', 'x', ), zlib=True, fill_value=np.nan)
         v.units = '-'
         v.long_name = 'Slope factor as defined in Farinotti et al 2009'
-        v[:] = slope_factor
+        v[:] = slope_factor.astype(np.float32)
 
         vn = 'dis_from_border'
         if vn in nc.variables:
             v = nc.variables[vn]
         else:
-            v = nc.createVariable(vn, 'f4', ('y', 'x', ))
+            v = nc.createVariable(vn, 'f4', ('y', 'x', ), zlib=True, fill_value=np.nan)
         v.units = 'm'
         v.long_name = 'Distance from glacier boundaries'
-        v[:] = dis_from_border
+        v[:] = dis_from_border.astype(np.float32)
 
 
 def _all_inflows(cls, cl):
@@ -1604,18 +1610,18 @@ def gridded_mb_attributes(gdir):
         if vn in nc.variables:
             v = nc.variables[vn]
         else:
-            v = nc.createVariable(vn, 'f4', ('y', 'x',))
+            v = nc.createVariable(vn, 'f4', ('y', 'x',), zlib=True, fill_value=np.nan)
         v.units = 'm^2'
         v.long_name = 'Catchment area above point'
         v.description = ('This is a very crude method: just the area above '
                          'the points elevation on glacier.')
-        v[:] = catch_area_above_z
+        v[:] = catch_area_above_z.astype(np.float32)
 
         vn = 'lin_mb_above_z'
         if vn in nc.variables:
             v = nc.variables[vn]
         else:
-            v = nc.createVariable(vn, 'f4', ('y', 'x',))
+            v = nc.createVariable(vn, 'f4', ('y', 'x',), zlib=True, fill_value=np.nan)
         v.units = 'kg/year'
         v.long_name = 'MB above point from linear MB model, without catchments'
         v.description = ('Mass balance cumulated above the altitude of the'
@@ -1623,13 +1629,13 @@ def gridded_mb_attributes(gdir):
                          'a coarse approximation of the real flux. '
                          'The mass balance model is a simple linear function'
                          'of altitude.')
-        v[:] = lin_mb_above_z
+        v[:] = lin_mb_above_z.astype(np.float32)
 
         vn = 'oggm_mb_above_z'
         if vn in nc.variables:
             v = nc.variables[vn]
         else:
-            v = nc.createVariable(vn, 'f4', ('y', 'x',))
+            v = nc.createVariable(vn, 'f4', ('y', 'x',), zlib=True, fill_value=np.nan)
         v.units = 'kg/year'
         v.long_name = 'MB above point from OGGM MB model, without catchments'
         v.description = ('Mass balance cumulated above the altitude of the'
@@ -1637,7 +1643,7 @@ def gridded_mb_attributes(gdir):
                          'a coarse approximation of the real flux. '
                          'The mass balance model is a calibrated temperature '
                          'index model like OGGM.')
-        v[:] = oggm_mb_above_z
+        v[:] = oggm_mb_above_z.astype(np.float32)
 
     # Hardest part - MB per catchment
     try:
@@ -1702,19 +1708,19 @@ def gridded_mb_attributes(gdir):
         if vn in nc.variables:
             v = nc.variables[vn]
         else:
-            v = nc.createVariable(vn, 'f4', ('y', 'x',))
+            v = nc.createVariable(vn, 'f4', ('y', 'x',), zlib=True, fill_value=np.nan)
         v.units = 'm^2'
         v.long_name = 'Catchment area above point on flowline catchments'
         v.description = ('Uses the catchments masks of the flowlines to '
                          'compute the area above the altitude of the given '
                          'point.')
-        v[:] = catchment_area
+        v[:] = catchment_area.astype(np.float32)
 
         vn = 'lin_mb_above_z_on_catch'
         if vn in nc.variables:
             v = nc.variables[vn]
         else:
-            v = nc.createVariable(vn, 'f4', ('y', 'x', ))
+            v = nc.createVariable(vn, 'f4', ('y', 'x', ), zlib=True, fill_value=np.nan)
         v.units = 'kg/year'
         v.long_name = 'MB above point from linear MB model, with catchments'
         v.description = ('Mass balance cumulated above the altitude of the'
@@ -1722,13 +1728,13 @@ def gridded_mb_attributes(gdir):
                          'flux. Note that it is a coarse approximation of the '
                          'real flux. The mass balance model is a simple '
                          'linear function of altitude.')
-        v[:] = lin_mb_above_z_on_catch
+        v[:] = lin_mb_above_z_on_catch.astype(np.float32)
 
         vn = 'oggm_mb_above_z_on_catch'
         if vn in nc.variables:
             v = nc.variables[vn]
         else:
-            v = nc.createVariable(vn, 'f4', ('y', 'x', ))
+            v = nc.createVariable(vn, 'f4', ('y', 'x', ), zlib=True, fill_value=np.nan)
         v.units = 'kg/year'
         v.long_name = 'MB above point from OGGM MB model, with catchments'
         v.description = ('Mass balance cumulated above the altitude of the'
@@ -1736,7 +1742,7 @@ def gridded_mb_attributes(gdir):
                          'flux. Note that it is a coarse approximation of the '
                          'real flux. The mass balance model is a calibrated '
                          'temperature index model like OGGM.')
-        v[:] = oggm_mb_above_z_on_catch
+        v[:] = oggm_mb_above_z_on_catch.astype(np.float32)
 
 
 def merged_glacier_masks(gdir, geometry):
@@ -1856,10 +1862,10 @@ def merged_glacier_masks(gdir, geometry):
 
 
 @entity_task(log)
-def gridded_data_var_to_geotiff(gdir, varname, fname=None):
+def gridded_data_var_to_geotiff(gdir, varname, fname=None, output_folder=None):
     """Writes a NetCDF variable to a georeferenced geotiff file.
 
-    The geotiff file will be written in the gdir directory.
+    The geotiff file will be written in the gdir directory or a specified folder.
 
     Parameters
     ----------
@@ -1869,12 +1875,33 @@ def gridded_data_var_to_geotiff(gdir, varname, fname=None):
         variable name in gridded_data.nc
     fname : str
         output file name (should end with `tif`), default is `varname.tif`
+    output_folder : str
+        optional path to write the geotiff file. If None, writes to gdir.dir.
+        If provided, files will be organized into subfolders based on RGI ID
+        (e.g., RGI60-11/RGI60-11.00/RGI60-11.00897_varname.tif)
     """
 
     # Assign the output path
     if fname is None:
-        fname = varname+'.tif'
-    outpath = os.path.join(gdir.dir, fname)
+        fname = f'{gdir.rgi_id}_{varname}.tif'
+
+    if output_folder is not None:
+        # Create subfolder structure based on RGI ID
+        # RGI6: RGI60-11.00897 -> RGI60-11 (8 chars) / RGI60-11.00 (11 chars)
+        # RGI7: RGI2000-v7.0-G-01-00001 -> RGI2000-v7.0-G-01 (17 chars) / RGI2000-v7.0-G-01-00 (20 chars)
+        rid = gdir.rgi_id
+        # Determine folder structure based on RGI ID length
+        if len(rid) <= 14:
+            # RGI6 format
+            base_dir = os.path.join(output_folder, rid[:8], rid[:11])
+        else:
+            # RGI7 format
+            base_dir = os.path.join(output_folder, rid[:17], rid[:20])
+        utils.mkdir(base_dir)
+    else:
+        base_dir = gdir.dir
+
+    outpath = os.path.join(base_dir, fname)
 
     # Locate gridded_data.nc file and read it
     nc_path = gdir.get_filepath('gridded_data')

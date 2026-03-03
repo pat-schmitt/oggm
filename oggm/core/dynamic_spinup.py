@@ -46,7 +46,8 @@ def run_dynamic_spinup(gdir, settings_filesuffix='',
                        store_model_evolution=True, ignore_errors=False,
                        return_t_spinup_best=False, ye=None,
                        model_flowline_filesuffix='',
-                       add_fixed_geometry_spinup=False, **kwargs):
+                       add_fixed_geometry_spinup=False, allow_calving=False,
+                       store_monthly_step=None, **kwargs):
     """Dynamically spinup the glacier to match area or volume at the RGI date.
 
     This task allows to do simulations in the recent past (before the glacier
@@ -210,6 +211,14 @@ def run_dynamic_spinup(gdir, settings_filesuffix='',
         defined start year (could be defined through spinup_period or
         spinup_start_yr). Only has an effect if store_model_evolution is True.
         Default is False
+    allow_calving : bool
+        If True you can use the dynamic spinup with calving. So far this is not
+        tested and you need to know what you are doing when switching it on.
+        Default is False
+    store_monthly_step : Bool
+        If True (False)  model diagnostics will be stored monthly (yearly).
+        If unspecified, we follow the update of the MB model, which
+        defaults to yearly (see __init__).
     kwargs : dict
         kwargs to pass to the evolution_model instance
 
@@ -405,8 +414,14 @@ def run_dynamic_spinup(gdir, settings_filesuffix='',
                                  'dynamic spinup function!')
 
     if gdir.settings['use_kcalving_for_run']:
-        raise InvalidParamsError('Dynamic spinup not tested with '
-                                 "gdir.settings['use_kcalving_for_run'] is `True`!")
+        if allow_calving:
+            log.warning("You are using the dynamic spinup with calving, this "
+                        "is experimental and not tested!")
+        else:
+            raise InvalidParamsError('Dynamic spinup not tested with '
+                                     "gdir.settings['use_kcalving_for_run'] is "
+                                     "`True`! If you know what you are doing "
+                                     "you can set allow_calving=True!')")
 
     # this function saves a model without conducting a dynamic spinup, but with
     # the provided output_filesuffix, so following tasks can find it.
@@ -435,7 +450,9 @@ def run_dynamic_spinup(gdir, settings_filesuffix='',
                 yr_run,
                 geom_path=geom_path,
                 diag_path=diag_path,
-                fl_diag_path=fl_diag_path)
+                fl_diag_path=fl_diag_path,
+                store_monthly_step=store_monthly_step,
+            )
 
         return model_dynamic_spinup_end
 
@@ -518,7 +535,9 @@ def run_dynamic_spinup(gdir, settings_filesuffix='',
                 diag_path=diag_path,
                 fl_diag_path=fl_diag_path,
                 dynamic_spinup_min_ice_thick=min_ice_thickness,
-                fixed_geometry_spinup_yr=fixed_geometry_spinup_yr)
+                fixed_geometry_spinup_yr=fixed_geometry_spinup_yr,
+                store_monthly_step=store_monthly_step,
+            )
 
             # now we delete the min_h variable again if it was not
             # included before (inplace)
@@ -976,7 +995,9 @@ def run_dynamic_spinup(gdir, settings_filesuffix='',
                 target_yr,
                 geom_path=geom_path,
                 diag_path=diag_path,
-                fl_diag_path=fl_diag_path, )
+                fl_diag_path=fl_diag_path,
+                store_monthly_step=store_monthly_step,
+            )
 
     if return_t_spinup_best:
         return model_dynamic_spinup_end[-1], final_t_spinup_guess[-1]
