@@ -8,7 +8,6 @@ import shutil
 import sys
 import glob
 from collections import OrderedDict
-from distutils.util import strtobool
 
 import numpy as np
 import pandas as pd
@@ -626,13 +625,8 @@ def initialize(file=None, logging_level='INFO', params=None):
     PARAMS.do_log = False
 
     # Make sure we have a proper cache dir
-    from oggm.utils import download_oggm_files
+    from oggm.utils import download_oggm_files, get_demo_file
     download_oggm_files()
-
-    # Read in the demo glaciers
-    file = os.path.join(os.path.abspath(os.path.dirname(__file__)),
-                        'data', 'demo_glaciers.csv')
-    DATA['demo_glaciers'] = pd.read_csv(file, index_col=0)
 
     # Add other things
     if 'dem_grids' not in DATA:
@@ -643,8 +637,7 @@ def initialize(file=None, logging_level='INFO', params=None):
                           'AntarcticDEM_wgs84.json',
                           'REMA_100m_dem.json']:
             if grid_json not in grids:
-                fp = os.path.join(os.path.abspath(os.path.dirname(__file__)),
-                                  'data', grid_json)
+                fp = get_demo_file(grid_json)
                 try:
                     grids[grid_json] = salem.Grid.from_json(fp)
                 except NameError:
@@ -896,3 +889,37 @@ def add_to_basenames(basename, filename, docstr=''):
     if '.' not in filename:
         raise ValueError('The filename needs a proper file suffix!')
     BASENAMES[basename] = (filename, docstr)
+
+
+def strtobool(value: str) -> bool:
+    """Convert a string representation of truth to True or False.
+
+    Reimplementation of distutils's ``strtobool``, which is deprecated
+    from Python 3.12.
+
+    Parameters
+    ----------
+    value : bool
+        Any value to convert.
+
+    Returns
+    -------
+    bool
+        True for "y", "yes", "t", "true", "on", and "1"; False for "n", "no", "f", "false", "off", and "0".
+
+    Raises
+    ------
+    ValueError if ``value`` is anything else.
+    """
+
+    trues = {"yes", "true", "t", "y", "on", "1"}
+    falses = {"no", "false", "f", "n", "off", "0"}
+
+    if isinstance(value, str):
+        value = value.lower()
+        if value in trues:
+            return True
+        if value in falses:
+            return False
+
+    raise ValueError('Expected "%s"' % '", "'.join(trues | falses))
