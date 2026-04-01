@@ -111,6 +111,11 @@ Enhancements
 - Added a new way to calibrate the mass balance model with MB
   timeseries (:pull:`1827`).
   By `Chloe Hancock <https://github.com/chloe-hancock>`_
+- SemiImplicitModel (the default dynamical solver in OGGM) now also
+  supports calving like FluxBasedModel does (:pull:`1858`). Inversion
+  with calving remains poorly supported / untested since v1.6 series,
+  but this is an important step to re-offer a full calving workflow in
+  OGGM core. By `Beatriz Recinos <https://github.com/bearecinos>`_
 - Refactored installation. Pip installations now accept optional dependencies,
   and no longer requires dedicated yaml files. Added support for `uv`.
   (:pull:`1849`).
