@@ -4094,7 +4094,7 @@ def mb_calibration_from_scalar_mb(gdir, *,
 
     # Ok, regardless on how we want to calibrate, we start with defaults
     if melt_f is None:
-        melt_f = gdir.settings.defaults['melt_f']
+        melt_f = gdir.settings['melt_f']
 
     if prcp_fac is None:
         if gdir.settings['prcp_fac'] is None:
@@ -4103,7 +4103,12 @@ def mb_calibration_from_scalar_mb(gdir, *,
             prcp_fac = gdir.settings['prcp_fac']
 
     if temp_bias is None:
-        temp_bias = 0
+        try:
+            # see if a default temp bias is available
+            temp_bias = gdir.settings['temp_bias']
+        except KeyError:
+            # if no default available set to 0
+            temp_bias = 0
 
     # Create the MB model we will calibrate
     mb_mod = mb_model_class(
@@ -4259,7 +4264,7 @@ def mb_calibration_from_scalar_mb(gdir, *,
 
     # Write
     if write_to_gdir:
-        if any(key in gdir.settings
+        if any(key in gdir.get_stored_settings(filesuffix=settings_filesuffix)
                for key in ['melt_f', 'prcp_fac', 'temp_bias']) and not overwrite_gdir:
             raise InvalidWorkflowError('Their are already mass balance parameters '
                                        'stored in the settings file. Set '
@@ -4418,7 +4423,7 @@ def apparent_mb_from_linear_mb(gdir, settings_filesuffix:str='',
 
 @entity_task(log, writes=['inversion_flowlines'])
 def apparent_mb_from_any_mb(gdir, settings_filesuffix='',
-                            input_filesuffix=None,
+                            input_filesuffix='',
                             output_filesuffix=None,
                             mb_model=None,
                             mb_model_class=MonthlyTIModel,
@@ -4439,7 +4444,9 @@ def apparent_mb_from_any_mb(gdir, settings_filesuffix='',
         ``@entity-task`` decorator.
     input_filesuffix: str
         the filesuffix of the inversion flowlines which should be used (useful
-        for conducting multiple experiments in the same gdir)
+        for conducting multiple experiments in the same gdir). By default we use
+        '', to start the workflow after geometrically constructing the inversion
+        flowlines.
     output_filesuffix: str
         the filesuffix of the final inversion flowlines which are saved back
         into the gdir (useful for conducting multiple experiments in the same

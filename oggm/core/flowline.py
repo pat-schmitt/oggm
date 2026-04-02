@@ -3293,6 +3293,7 @@ def flowline_model_run(gdir, settings_filesuffix='',
                        water_level=None,
                        evolution_model=None, stop_criterion=None,
                        init_model_filesuffix=None, init_model_yr=None,
+                       model_flowlines_filesuffix='',
                        **kwargs):
     """Runs a model simulation with the default time stepping scheme.
 
@@ -3324,6 +3325,9 @@ def flowline_model_run(gdir, settings_filesuffix='',
     init_model_fls : []
         list of flowlines to use to initialise the model (the default is the
         present_time_glacier file from the glacier directory)
+    model_flowlines_filesuffix : str
+        input filesuffix for model_flowlines, only used if init_model_filesuffix
+        and init_model_fls are not provided
     store_monthly_step : bool
         whether to store the diagnostic data at a monthly time step or not
         (default is yearly)
@@ -3363,6 +3367,12 @@ def flowline_model_run(gdir, settings_filesuffix='',
         glacier wide diagnostic files - all other outputs are set
         to constants during "spinup"
      """
+
+    if output_filesuffix is None:
+        output_filesuffix = settings_filesuffix
+
+    if model_flowlines_filesuffix is None:
+        model_flowlines_filesuffix = settings_filesuffix
 
     if init_model_filesuffix is not None:
         fp = gdir.get_filepath('model_geometry',
@@ -3434,7 +3444,8 @@ def flowline_model_run(gdir, settings_filesuffix='',
                                   delete=True)
 
     if init_model_fls is None:
-        fls = gdir.read_pickle('model_flowlines')
+        fls = gdir.read_pickle('model_flowlines',
+                               filesuffix=model_flowlines_filesuffix)
     else:
         fls = copy.deepcopy(init_model_fls)
     if zero_initial_glacier:
@@ -3500,7 +3511,7 @@ def run_random_climate(gdir, settings_filesuffix='',
                        mb_model_class=MonthlyTIModel,
                        climate_filename='climate_historical',
                        climate_input_filesuffix='',
-                       output_filesuffix='', init_model_fls=None,
+                       output_filesuffix=None, init_model_fls=None,
                        init_model_filesuffix=None,
                        init_model_yr=None,
                        zero_initial_glacier=False,
@@ -3630,7 +3641,7 @@ def run_constant_climate(gdir, settings_filesuffix='',
                          store_fl_diagnostics=None,
                          init_model_filesuffix=None,
                          init_model_yr=None,
-                         output_filesuffix='',
+                         output_filesuffix=None,
                          climate_filename='climate_historical',
                          mb_model_class=MonthlyTIModel,
                          climate_input_filesuffix='',
@@ -3753,7 +3764,7 @@ def run_from_climate_data(gdir, settings_filesuffix='',
                           climate_filename='climate_historical',
                           mb_model=None,
                           mb_model_class=MonthlyTIModel,
-                          climate_input_filesuffix='', output_filesuffix='',
+                          climate_input_filesuffix='', output_filesuffix=None,
                           init_model_filesuffix=None, init_model_yr=None,
                           init_model_fls=None, zero_initial_glacier=False,
                           bias=0, temperature_bias=None,
@@ -3987,7 +3998,9 @@ def run_with_hydro(gdir, settings_filesuffix='',
     mb_mod = out.mb_model
 
     # Glacier geometry during the run
-    suffix = kwargs.get('output_filesuffix', '')
+    suffix = kwargs.get('output_filesuffix', settings_filesuffix)
+    if suffix is None:
+        suffix = settings_filesuffix
 
     # We start by fetching the reference model geometry
     # The one we just computed

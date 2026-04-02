@@ -45,7 +45,7 @@ def run_dynamic_spinup(gdir, settings_filesuffix='',
                        store_model_geometry=True, store_fl_diagnostics=None,
                        store_model_evolution=True, ignore_errors=False,
                        return_t_spinup_best=False, ye=None,
-                       model_flowline_filesuffix='',
+                       model_flowlines_filesuffix='',
                        add_fixed_geometry_spinup=False, allow_calving=False,
                        store_monthly_step=None, **kwargs):
     """Dynamically spinup the glacier to match area or volume at the RGI date.
@@ -200,7 +200,7 @@ def run_dynamic_spinup(gdir, settings_filesuffix='',
         use run_from_climate_data afterwards and merge both outputs using
         merge_consecutive_run_outputs.
         Default is None
-    model_flowline_filesuffix : str
+    model_flowlines_filesuffix : str
         suffix to the model_flowlines filename to use (if no other flowlines
         are provided with init_model_filesuffix or init_model_fls).
         Default is ''
@@ -282,7 +282,7 @@ def run_dynamic_spinup(gdir, settings_filesuffix='',
                         "possible be aware that the handling of observations "
                         "has changed. TODO: add link once new OGGM is released")
             fls_ref = gdir.read_pickle('model_flowlines',
-                                       filesuffix=model_flowline_filesuffix)
+                                       filesuffix=model_flowlines_filesuffix)
             ref_volume_m3 = {'value': np.sum([f.volume_m3 for f in fls_ref]),
                              'year': gdir.rgi_date + 1}
             gdir.observations['ref_volume_m3'] = ref_volume_m3
@@ -357,7 +357,7 @@ def run_dynamic_spinup(gdir, settings_filesuffix='',
 
     if init_model_fls is None:
         fls_spinup = gdir.read_pickle('model_flowlines',
-                                      filesuffix=model_flowline_filesuffix)
+                                      filesuffix=model_flowlines_filesuffix)
     else:
         fls_spinup = copy.deepcopy(init_model_fls)
 
@@ -1033,7 +1033,7 @@ def dynamic_melt_f_run_with_dynamic_spinup(
         gdir, melt_f, yr0_ref_mb, yr1_ref_mb, fls_init, ys, ye,
         settings_filesuffix='', output_filesuffix=None, evolution_model=None,
         mb_model_historical=None, mb_model_spinup=None,
-        model_flowline_filesuffix='',
+        model_flowlines_filesuffix='',
         minimise_for='area', climate_input_filesuffix='', spinup_period=20,
         min_spinup_period=10, target_yr=None, precision_percent=1,
         precision_absolute=1, min_ice_thickness=None,
@@ -1217,7 +1217,7 @@ def dynamic_melt_f_run_with_dynamic_spinup(
                         "has changed. TODO: add link once new OGGM is released")
             ref_volume_m3 = {}
             fls_ref = gdir.read_pickle('model_flowlines',
-                                       filesuffix=model_flowline_filesuffix)
+                                       filesuffix=model_flowlines_filesuffix)
             ref_volume_m3['value'] = np.sum([f.volume_m3 for f in fls_ref])
             ref_volume_m3['year'] = gdir.rgi_date
             gdir.observations['ref_volume_m3'] = ref_volume_m3
@@ -1254,7 +1254,7 @@ def dynamic_melt_f_run_with_dynamic_spinup(
                        zip(fls_init,
                            gdir.read_pickle(
                                'model_flowlines',
-                               filesuffix=model_flowline_filesuffix))]):
+                               filesuffix=model_flowlines_filesuffix))]):
             raise InvalidWorkflowError('If you want to perform a dynamic '
                                        'melt_f calibration including an '
                                        'inversion, it is not possible to '
@@ -1284,9 +1284,9 @@ def dynamic_melt_f_run_with_dynamic_spinup(
                 ref_volume_year=gdir.observations['ref_volume_m3']['year'],
                 add_to_log_file=False)
 
-    model_flowline_filesuffix = f'{model_flowline_filesuffix}_dyn_melt_f_calib'
+    model_flowlines_filesuffix = f'{model_flowlines_filesuffix}_dyn_melt_f_calib'
     init_present_time_glacier(gdir, settings_filesuffix=settings_filesuffix,
-                              output_filesuffix=model_flowline_filesuffix,
+                              output_filesuffix=model_flowlines_filesuffix,
                               add_to_log_file=False)
 
     # Now do a dynamic spinup to match area
@@ -1319,7 +1319,7 @@ def dynamic_melt_f_run_with_dynamic_spinup(
             return_t_spinup_best=True, ye=ye,
             store_model_geometry=store_model_geometry,
             store_fl_diagnostics=store_fl_diagnostics,
-            model_flowline_filesuffix=model_flowline_filesuffix,
+            model_flowlines_filesuffix=model_flowlines_filesuffix,
             add_fixed_geometry_spinup=add_fixed_geometry_spinup,
             **kwargs)
         # save the temperature bias which was successful in the last iteration
@@ -1611,7 +1611,7 @@ def dynamic_melt_f_run(
         gdir, melt_f, yr0_ref_mb, yr1_ref_mb, fls_init, ys, ye,
         settings_filesuffix='',  output_filesuffix=None, evolution_model=None,
         local_variables=None, set_local_variables=False, target_yr=None,
-        model_flowline_filesuffix='',
+        model_flowlines_filesuffix='',
         **kwargs):
     """
     This function is one option for a 'run_function' for the
@@ -1788,7 +1788,7 @@ def run_dynamic_melt_f_calibration(
         ref_mb_period=None, melt_f_min=None,
         melt_f_max=None, melt_f_max_step_length_minimum=0.1, maxiter=20,
         ignore_errors=False, output_filesuffix=None,
-        model_flowline_filesuffix=None,
+        model_flowlines_filesuffix=None,
         ys=None, ye=None, target_yr=None,
         run_function=dynamic_melt_f_run_with_dynamic_spinup,
         kwargs_run_function=None,
@@ -1882,7 +1882,7 @@ def run_dynamic_melt_f_calibration(
     output_filesuffix : str
         For the output file. If None the settings_filesuffix will be used.
         Default is None
-    model_flowline_filesuffix : str
+    model_flowlines_filesuffix : str
         for the model flowline to use if no other flowlines for initialisation
         are provided. If None the settings_filesuffix will be used.
         Default is None
@@ -1944,8 +1944,8 @@ def run_dynamic_melt_f_calibration(
     if output_filesuffix is None:
         output_filesuffix = settings_filesuffix
 
-    if model_flowline_filesuffix is None:
-        model_flowline_filesuffix = settings_filesuffix
+    if model_flowlines_filesuffix is None:
+        model_flowlines_filesuffix = settings_filesuffix
 
     # melt_f constraints
     if melt_f_min is None:
@@ -2085,7 +2085,7 @@ def run_dynamic_melt_f_calibration(
 
     if init_model_fls is None:
         fls_init = gdir.read_pickle('model_flowlines',
-                                    filesuffix=model_flowline_filesuffix)
+                                    filesuffix=model_flowlines_filesuffix)
     else:
         fls_init = copy.deepcopy(init_model_fls)
 
@@ -2180,7 +2180,7 @@ def run_dynamic_melt_f_calibration(
                  melt_f=None, yr0_ref_mb=None, yr1_ref_mb=None,
                  fls_init=None, ys=None, ye=None,
                  local_variables=local_variables_run_function,
-                 model_flowline_filesuffix=model_flowline_filesuffix,
+                 model_flowlines_filesuffix=model_flowlines_filesuffix,
                  set_local_variables=True, **kwargs_run_function)
 
     # this is the actual model run which is executed each iteration in order to

@@ -733,7 +733,7 @@ def calibrate_inversion_from_volume(gdirs, settings_filesuffix='',
         ref_volume_m3_file = sum([gdir.observations['ref_volume_m3']['value']
                                   for gdir in gdirs_use])
         if ref_volume_m3 is None:
-            # if no reference volume is porvided use the one from the obs-file
+            # if no reference volume is provided use the one from the obs-file
             ref_volume_m3 = ref_volume_m3_file
         elif np.isclose(ref_volume_m3_file, ref_volume_m3, rtol=1e-2):
             # ok the provided ref volume is the same as stored in the obs-file
@@ -836,6 +836,9 @@ def calibrate_inversion_from_volume(gdirs, settings_filesuffix='',
                                             add_to_log_file=add_to_log_file)
     # add the actually derived volume to the observations file
     for gdir in gdirs:
+        # ensure the observation is written into the correct file
+        gdir.observations_filesuffix = observations_filesuffix
+
         vol_single = df.vol_oggm_m3.loc[gdir.rgi_id]
         if ref_volume_year is None:
             year_single = gdir.rgi_date + 1
@@ -911,15 +914,17 @@ def invert_from_params(gdirs,
 
 
 @entity_task(log, writes=['inversion_output'])
-def calibrate_inversion_from_volume(gdir, vol_ref_m3=None,
-                                    fs=0, a_bounds=(0.1, 10),
-                                    apply_fs_on_mismatch=False,
-                                    error_on_mismatch=True,
-                                    filter_inversion_output=True):
+def calibrate_inversion_from_volume_entity_task(gdir, vol_ref_m3=None,
+                                                fs=0, a_bounds=(0.1, 10),
+                                                apply_fs_on_mismatch=False,
+                                                error_on_mismatch=True,
+                                                filter_inversion_output=True):
     """Fit the volume of a single glacier to a reference volume estimate.
 
     This is the entity task version of calibrate_inversion_from_consensus.
     It finds the "best Glen A" to match the reference volume for a single glacier.
+
+    TODO: needs to be updated for new settings and observations handling
 
     Parameters
     ----------
@@ -1143,6 +1148,7 @@ def calibrate_inversion_from_consensus(gdirs, settings_filesuffix='',
             if col != 'vol_oggm_m3':
                 ref_volume_sinlge[col] = df[col].loc[gdir.rgi_id]
         gdir.observations['ref_volume_m3'] = ref_volume_sinlge
+
     return df
 
 
