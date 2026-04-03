@@ -3,6 +3,19 @@
 Version history
 ===============
 
+v1.7.x (not released)
+---------------------
+
+Enhancements
+~~~~~~~~~~~~
+
+- Added support for processing GSWP3+W5E5 and W5E5 data in ``oggm.shop`` at
+  a daily resolution (:pull:`1800`).
+  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
+- Added type aliases to autodocs which allows Sphinx to recognise OGGM classes
+  (:pull:`1800`).
+  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
+
 v1.6.x (not released)
 ---------------------
 
@@ -34,19 +47,6 @@ Enhancements
   it's just a placeholder (:pull:`1757`).
   By `Dan Goldberg <https://github.com/dngoldberg>`_ and
   `Fabien Maussion <https://github.com/fmaussion>`_.
-- Refactored mass balance functions ``get_specific_mb`` and``get_ela``. These
-  are no longer recursive and have been optimised for performance (:pull:`1767`).
-  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
-- Added support for processing GSWP3+W5E5 and W5E5 data in ``oggm.shop`` at
-  a daily resolution (:pull:`1769`).
-  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
-- Added daily temperature index model ``DailyTIModel``, refactored
-  ``MonthlyTIModel``, and parametrised tests. Please note that other OGGM
-  features may not yet fully support daily resolution data (:pull:`1769`).
-  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
-- Added type aliases to autodocs which allows Sphinx to recognise OGGM classes
-  (:pull:`1769`).
-  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
 - Added the ability to use an incomplete version of the full params.cfg file
   to override some default parameter values. This can be done by providing the
   file during initialization with ``cfg.initialize(file=mini_params_filepath)``
@@ -61,8 +61,40 @@ Enhancements
   ``workflow.merge_gridded_data``. If no grid is provided, the default is to
   merge all grids of the provided gdirs (:pull:`1779`).
   By `Patrick Schmitt <https://github.com/pat-schmitt>`_
-- Fixed ``TimeoutError`` when running tests when urlopen hangs on DNS lookup (:pull:`1813`).
-  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
+- A new global task (`glathida.compile_glathida_on_grid`) is available to generate
+  big tables that can be used for e.g. ML workflows for ice thickness estimation
+  (:pull:`1782`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+- Flowlines shapefiles output now have more attributes and are easier to
+  use (:pull:`1786`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+- Flowline diagnostic variables can now be saved with a monthly resolution.
+  With this the unit of some variables depends on the requested resolution.
+  To reflect this the correct unit is stored in the attributes of the variables
+  and the following variable names were changed: ``dhdt_myr`` -> ``dhdt``,
+  ``climatic_mb_myr`` -> ``climatic_mb`` and ``flux_divergence_myr`` ->
+  ``flux_divergence`` (:pull:`1792`).
+  By `Patrick Schmitt <https://github.com/pat-schmitt>`_
+- New `workflow.invert_from_params` task which allows to specify which (regional)
+  glen A and sliding parameters to use. This is useful if you don't have any
+  data to calibrate to (:pull:`1816`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+- Many additions to the `prepro_levels` routine to accomodate the many additions
+  to the glacier directories (RGI7, new climate data, etc.), as well as exporting
+  geotiffs of ice thickness fields, etc. (:pull:`1816`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+- New precipitation correction factors for ERA5 data and bias files according to the
+  new glacier directories in OGGM 1.6.3. (:pull:`1816`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+- New `calibrate_inversion_from_volume` which is the entity task version of
+  `calibrate_inversion_from_consensus`. It finds the "best Glen A" to match
+  the reference volume for a single glacier. (:pull:`1816`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+- Added a new way to calibrate the mass balance model with MB
+  timeseries (:pull:`1827`).
+  By `Chloe Hancock <https://github.com/chloe-hancock>`_
+
+
 Bug fixes
 ~~~~~~~~~
 
@@ -72,6 +104,33 @@ Bug fixes
 - `apparent_mb_from_any_mb` no longer computes mass-balance twice (:pull:`1757`).
   By `Dan Goldberg <https://github.com/dngoldberg>`_ and
   `Fabien Maussion <https://github.com/fmaussion>`_.
+- Fixed small bug in which ERA5 data was missatributed for two Pyrenean glaciers (:pull:`1843`).
+  By `Lilian Schuster <https://github.com/lilianschuster>`_
+- Fixed ``TimeoutError`` when running tests when urlopen hangs on DNS lookup (:pull:`1813`).
+  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
+- Refactored mass balance functions `get_specific_mb` and `get_ela`. These
+  are no longer recursive and have been optimised for performance.
+  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
+- Changed COPDEM data source (again) - this comes with good sides as the download
+  is much easier now (:pull:`1773`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+While we try to avoid breaking changes in minor releases, the following changes might
+break some code, but remain minor in nature:
+
+- `PARAMS['use_winter_prcp_fac']` `cfg.PARAMS['use_temp_bias_from_file']` have been replaced
+  by explicit calls in code (:pull:`1816`). In general, parameters that indicate whether
+  an action should be taken or not in a workflow should not be a parameter in the first place.
+  There are several other instances of this in OGGM, to be reviewed.
+  By `Fabien Maussion <https://github.com/fmaussion>`_.
+- Changed to the default in `distribute_thickness_per_altitude` to *not* smooth the
+  resulting thickness fields. This would yield to weird effects at glacier boundaries
+  and seemed overkill since topography is smoothed quite aggressively as well (:pull:`1773`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+
 
 v1.6.2 (August 25, 2024)
 ------------------------
@@ -190,7 +249,7 @@ v1.6.1 (August 27, 2023)
 A new minor release of the OGGM with several improvements and bug fixes.
 We recommend all users currently using 1.6.0 to switch to this version if they
 are still in the testing/learning phase. If you rely on your results
-staying stricly the same, you should stick to the version you are currently
+staying strictly the same, you should stick to the version you are currently
 running.
 
 
@@ -898,7 +957,7 @@ Bug fixes
   By `Fabien Maussion <https://github.com/fmaussion>`_.
 - Nominal glaciers now error early in the processing chain (:issue:`832`).
   By `Fabien Maussion <https://github.com/fmaussion>`_.
-- Specific MB (not used operationaly) was wrongly computer for zero ice
+- Specific MB (not used operationally) was wrongly computer for zero ice
   thickness rectangular or parabolic sections. This is now corrected
   (:issue:`828`).
   By `Fabien Maussion <https://github.com/fmaussion>`_.

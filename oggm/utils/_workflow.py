@@ -77,6 +77,13 @@ from oggm import cfg
 from oggm.exceptions import InvalidParamsError, InvalidWorkflowError
 
 
+def _get_xr_cftime_kwargs():
+    try:
+        return {'decode_times': xr.coders.CFDatetimeCoder(use_cftime=True)}
+    except AttributeError:
+        return {'use_cftime': True}
+
+
 # Default RGI date (median per region in RGI6)
 RGI_DATE = {'01': 2009,
             '02': 2004,
@@ -539,7 +546,8 @@ class entity_task(object):
                 return out
 
         _entity_task.__dict__['is_entity_task'] = True
-        # adds the possibility to use a function, decorated as entity_task, without its decoration.
+        # adds the possibility to use a function, decorated as entity_task,
+        # without its decoration.
         _entity_task.unwrapped = task_func
         return _entity_task
 
@@ -650,6 +658,22 @@ def get_ref_mb_glaciers(gdirs, y0=None, y1=None):
     return ref_gdirs
 
 
+def get_rgi70C_year(rgi_id):
+    """Temporary function to fetch the rgi outline year for RGI70C ids.
+    """
+
+    key = 'RGI70C_rgi_year'
+    if key not in cfg.DATA:
+        from oggm.utils._downloads import file_downloader
+        fp = file_downloader('https://cluster.klima.uni-bremen.de/~oggm/'
+                             'ref_mb_params/oggm_v1.6/inv_rgi7/'
+                             'rgi7c_rgi_year_2025.1.csv')
+
+        cfg.DATA[key] = pd.read_csv(fp, index_col=0)['rgi_year']
+
+    return int(cfg.DATA[key].loc[rgi_id])
+
+
 def _chaikins_corner_cutting(line, refinements=5):
     """Some magic here.
 
@@ -717,26 +741,28 @@ def get_centerline_lonlat(gdir,
         if keep_main_only and mm == 0:
             continue
         if corrected_widths_output:
-            le_segment = np.rint(np.max(cl.dis_on_line) * gdir.grid.dx)
-            for wi, cur, (n1, n2), wi_m in zip(cl.widths, cl.line.coords,
-                                               cl.normals, cl.widths_m):
+            dis_on_line = cl.dis_on_line * gdir.grid.dx
+            for wi, cur, (n1, n2), wi_m, d in zip(cl.widths, cl.line.coords,
+                                                  cl.normals, cl.widths_m,
+                                                  dis_on_line):
                 _l = shpg.LineString([shpg.Point(cur + wi / 2. * n1),
                                       shpg.Point(cur + wi / 2. * n2)])
                 gs = dict()
                 gs['RGIID'] = gdir.rgi_id
                 gs['SEGMENT_ID'] = j
-                gs['LE_SEGMENT'] = le_segment
+                gs['DISONLINE'] = d
                 gs['MAIN'] = mm
                 gs['WIDTH_m'] = wi_m
                 gs['geometry'] = shp_trafo(tra_func, _l)
                 olist.append(gs)
         elif geometrical_widths_output:
-            le_segment = np.rint(np.max(cl.dis_on_line) * gdir.grid.dx)
-            for _l, wi_m in zip(cl.geometrical_widths, cl.widths_m):
+            dis_on_line = cl.dis_on_line * gdir.grid.dx
+            for _l, d in zip(cl.geometrical_widths, dis_on_line):
+                wi_m = _l.length * gdir.grid.dx
                 gs = dict()
                 gs['RGIID'] = gdir.rgi_id
                 gs['SEGMENT_ID'] = j
-                gs['LE_SEGMENT'] = le_segment
+                gs['DISONLINE'] = d
                 gs['MAIN'] = mm
                 gs['WIDTH_m'] = wi_m
                 gs['geometry'] = shp_trafo(tra_func, _l)
@@ -888,7 +914,7 @@ def write_centerlines_to_shape(gdirs, *, path=True, to_tar=False,
         A good first value to test is 3.
     simplify_line_after : float
         apply shapely's `simplify` method to the line *after* corner cutting.
-        This is to reduce the size of the geometeries after they have been
+        This is to reduce the size of the geometries after they have been
         smoothed. The default value of 0 is fine if you use corner cutting less
         than 4. Otherwize try a small number, like 0.05 or 0.1.
     """
@@ -930,32 +956,6 @@ def write_centerlines_to_shape(gdirs, *, path=True, to_tar=False,
                 raise RuntimeError('Some geometries are non-empty GeometryCollection '
                                    f'at RGI Ids: {errdf.RGIID.values}')
     _write_shape_to_disk(odf, path, to_tar=to_tar)
-
-
-def demo_glacier_id(key):
-    """Get the RGI id of a glacier by name or key: None if not found."""
-
-    df = cfg.DATA['demo_glaciers']
-
-    # Is the name in key?
-    s = df.loc[df.Key.str.lower() == key.lower()]
-    if len(s) == 1:
-        return s.index[0]
-
-    # Is the name in name?
-    s = df.loc[df.Name.str.lower() == key.lower()]
-    if len(s) == 1:
-        return s.index[0]
-
-    # Is the name in Ids?
-    try:
-        s = df.loc[[key]]
-        if len(s) == 1:
-            return s.index[0]
-    except KeyError:
-        pass
-
-    return None
 
 
 class compile_to_netcdf(object):
@@ -1401,14 +1401,14 @@ def compile_climate_input(gdirs, path=True, filename='climate_historical',
             pgdir = gdirs[i]
             ppath = pgdir.get_filepath(filename=filename,
                                        filesuffix=input_filesuffix)
-            with xr.open_dataset(ppath) as ds_clim:
+            with xr.open_dataset(ppath, **_get_xr_cftime_kwargs()) as ds_clim:
                 ds_clim.time.values
             # If this worked, we have a valid gdir
             break
         except BaseException:
             i += 1
 
-    with xr.open_dataset(ppath) as ds_clim:
+    with xr.open_dataset(ppath, **_get_xr_cftime_kwargs()) as ds_clim:
         cyrs = ds_clim['time.year']
         cmonths = ds_clim['time.month']
         sm = cfg.PARAMS['hydro_month_' + pgdir.hemisphere]
@@ -1450,7 +1450,7 @@ def compile_climate_input(gdirs, path=True, filename='climate_historical',
         try:
             ppath = gdir.get_filepath(filename=filename,
                                       filesuffix=input_filesuffix)
-            with xr.open_dataset(ppath) as ds_clim:
+            with xr.open_dataset(ppath, **_get_xr_cftime_kwargs()) as ds_clim:
                 prcp[:, i] = ds_clim.prcp.values
                 temp[:, i] = ds_clim.temp.values
                 ref_hgt[i] = ds_clim.ref_hgt
@@ -2733,7 +2733,7 @@ class GlacierDirectory(object):
     def __init__(self, rgi_entity, base_dir=None, reset=False,
                  from_tar=False, delete_tar=False, settings_filesuffix='',
                  observations_filesuffix='',
-                 add_default_values_to_settings=True):
+                 add_parent_values_to_settings=False):
         """Creates a new directory or opens an existing one.
 
         Parameters
@@ -2755,8 +2755,8 @@ class GlacierDirectory(object):
             a filesuffix for a settings file to use
         observations_filesuffix : str, default=''
             a filesuffix for a observations file to use
-        add_default_values_to_settings : bool, default=True
-            if True and a settings value is read from the default settings file
+        add_parent_values_to_settings : bool, default=False
+            if True and a settings value is read from the parent settings file
             this value is also added to the current settings file
         """
 
@@ -2836,14 +2836,15 @@ class GlacierDirectory(object):
             raise RuntimeError('GlacierDirectory %s does not exist!' % self.dir)
 
         # define the initial settings for this gdir
-        self.add_default_values_to_settings = add_default_values_to_settings
+        self.add_parent_values_to_settings = add_parent_values_to_settings
         self._settings_filesuffix = settings_filesuffix
-        self.settings = self.get_settings(settings_filesuffix=settings_filesuffix)
+        self.settings = self._get_settings_class(
+            filesuffix=settings_filesuffix)
 
         # define the initial observations for this gdir
         self._observations_filesuffix = observations_filesuffix
-        self.observations = self.get_observations(
-            observations_filesuffix=observations_filesuffix)
+        self.observations = self._get_observations_class(
+            filesuffix=observations_filesuffix)
 
         # Do we want to use the RGI center point or ours?
         if self.settings['use_rgi_area']:
@@ -2860,7 +2861,8 @@ class GlacierDirectory(object):
 
         if is_glacier_complex:
             rgi_entity['glac_name'] = ''
-            rgi_entity['src_date'] = '2000-01-01 00:00:00'
+            rgi_year = get_rgi70C_year(self.rgi_id)
+            rgi_entity['src_date'] = f'{rgi_year}-01-01 00:00:00'
             if 'dem_source' not in rgi_entity:
                 rgi_entity['dem_source'] = None
             rgi_entity['term_type'] = 9
@@ -2997,6 +2999,10 @@ class GlacierDirectory(object):
         rgi_date = int(rgi_datestr[0:4])
         if rgi_date < 0:
             rgi_date = RGI_DATE[self.rgi_region]
+        if rgi_date >= 2020:
+            log.warning(f'{self.rgi_id}: rgi_date {rgi_date} modified '
+                        'to 2019 for workflow reasons.')
+            rgi_date = 2019
         self.rgi_date = rgi_date
 
         # logging file
@@ -4075,12 +4081,246 @@ class GlacierDirectory(object):
     @settings_filesuffix.setter
     def settings_filesuffix(self, value):
         self._settings_filesuffix = value
-        self.settings = self.get_settings(settings_filesuffix=value)
+        self.settings = self._get_settings_class(filesuffix=value)
 
-    def get_settings(self, settings_filesuffix):
+    def _get_settings_class(self, filesuffix, **kwargs):
         return ModelSettings(
-            self, filesuffix=settings_filesuffix, always_reload_data=False,
-            add_default_values=self.add_default_values_to_settings)
+            self, filesuffix=filesuffix, always_reload_data=False,
+            add_parent_values=self.add_parent_values_to_settings, **kwargs)
+
+    def _create_new_settings_or_observations(self, name, filesuffix, data=None,
+                                             ignore_existing=False,
+                                             overwrite=False, **kwargs):
+        """Create a new settings.yml or observations.yml file with content.
+
+        Parameters
+        ----------
+        name : str
+            Whether to create a 'settings' or 'observations' file.
+        filesuffix : str
+            The filesuffix identifying the settings or observations file.
+        data : dict, optional
+            The data to write into the file.
+        ignore_existing : bool
+            If False (default), raises an error if the file already exists.
+            If True, adds the new data to the existing file (see also
+            ``overwrite``).
+        overwrite : bool
+            If False (default), raises an error if any key in ``data`` is
+            already present in the file. If True, existing values are
+            overwritten silently.
+        **kwargs
+            Passed to the underlying settings or observations class (e.g.
+            ``parent_filesuffix`` for settings files).
+
+        Returns
+        -------
+        None
+        """
+        path = Path(self.get_filepath(name,
+                                      filesuffix=filesuffix))
+
+        if path.exists() and not ignore_existing:
+            raise ValueError(f"{name}{filesuffix}.yml already "
+                             f"exists. You can ignore by using "
+                             f"ignore_existing=True.")
+
+        if data is None:
+            data = {}
+
+        # this will create a new file if it does not exist
+        if name == 'settings':
+            self._get_settings_class(filesuffix=filesuffix, **kwargs)
+            self.write_to_settings(data, filesuffix=filesuffix,
+                                   overwrite=overwrite)
+        elif name == 'observations':
+            self._get_observations_class(filesuffix=filesuffix,
+                                         **kwargs)
+            self.write_to_observations(data, filesuffix=filesuffix,
+                                       overwrite=overwrite)
+        else:
+            raise NotImplementedError()
+
+        return None
+
+    def _read_settings_and_observations(self, name, filesuffix, keys,
+                                        **kwargs):
+        """Read variables from a settings.yml or observations.yml file.
+
+        Parameters
+        ----------
+        name : str
+            Whether to read from 'settings' or 'observations'.
+        filesuffix : str
+            The filesuffix identifying the settings or observations file.
+        keys : str or list or None
+            The parameter name(s) to return. If None, all stored parameters
+            are returned.
+        **kwargs
+            Passed to the underlying settings or observations class.
+
+        Returns
+        -------
+        dict
+            A dictionary containing the requested parameters and the
+            ``filesuffix`` of the file they were read from.
+        """
+        out = {f"filesuffix": filesuffix}
+
+        if keys is None:
+            if name == 'settings':
+                keys = self.get_stored_settings(filesuffix=filesuffix)
+            elif name == 'observations':
+                keys = self.get_stored_observations(
+                    filesuffix=filesuffix)
+            else:
+                raise NotImplementedError()
+
+        if not isinstance(keys, list):
+            keys = [keys]
+
+        if name == 'settings':
+            data = self._get_settings_class(
+                filesuffix=filesuffix, **kwargs)
+        elif name == 'observations':
+            data = self._get_observations_class(
+                filesuffix=filesuffix, **kwargs)
+
+        for v in keys:
+            out[v] = data[v]
+
+        return out
+
+    def _write_to_settings_and_observations(self, name, filesuffix, data,
+                                            overwrite=False, **kwargs):
+        """Write variables to a settings.yml or observations.yml file.
+
+        Parameters
+        ----------
+        name : str
+            Whether to write to 'settings' or 'observations'.
+        filesuffix : str
+            The filesuffix identifying the file. The file is created if it
+            does not exist yet.
+        data : dict
+            The data to write.
+        overwrite : bool
+            If False (default), raises an error if any key in ``data`` is
+            already present in the file. If True, existing values are
+            overwritten silently.
+        **kwargs
+            Passed to the underlying settings or observations class.
+
+        Returns
+        -------
+        None
+        """
+        if name == 'settings':
+            yml_file_handler = self._get_settings_class(
+                filesuffix=filesuffix, **kwargs)
+        elif name == 'observations':
+            yml_file_handler = self._get_observations_class(
+                filesuffix=filesuffix, **kwargs)
+        else:
+            raise NotImplementedError()
+
+        if not overwrite:
+            existing_data = self._get_stored_settings_and_observations(
+                name=name, filesuffix=filesuffix)
+
+        for k, v in data.items():
+            if not overwrite:
+                if k in existing_data:
+                    raise ValueError(
+                        f"{k} present in {name}{filesuffix}.yml, use "
+                        f"overwrite=True if you want to overwrite.")
+
+            yml_file_handler[k] = v
+
+        return None
+
+    def _get_stored_settings_and_observations(self, name, filesuffix):
+        return list(self.read_yml(name, filesuffix=filesuffix,
+                                  allow_empty=True).keys())
+
+    def create_new_settings(self, filesuffix, data=None,
+                            parent_filesuffix=None, ignore_existing=False,
+                            overwrite=False, **kwargs):
+        """Create a new settings file (settings<filesuffix>.yml).
+
+        Parameters
+        ----------
+        filesuffix : str
+            Identifier for the new settings file. Use an empty string for the
+            default ``settings.yml``.
+        data : dict, optional
+            Parameters to store in the new file.
+        parent_filesuffix : str, optional
+            The filesuffix of the settings file to use as a fallback when a
+            parameter is not found in this file. Defaults to ``cfg.PARAMS`` to
+            fall back to the global configuration.
+        ignore_existing : bool
+            If False (default), raises an error if the file already exists.
+            If True, adds ``data`` to the existing file.
+        overwrite : bool
+            If False (default), raises an error if any key in ``data`` is
+            already present in the file. If True, existing values are
+            overwritten silently.
+        """
+        return self._create_new_settings_or_observations(
+            name='settings', filesuffix=filesuffix, data=data,
+            ignore_existing=ignore_existing, overwrite=overwrite,
+            parent_filesuffix=parent_filesuffix, **kwargs)
+
+    def read_settings(self, keys=None, filesuffix='', **kwargs):
+        """Read parameters from a settings file.
+
+        Follows the parent chain defined by ``parent_filesuffix`` until the
+        requested parameter is found, falling back to ``cfg.PARAMS`` if
+        needed.
+
+        Parameters
+        ----------
+        keys : str or list, optional
+            The parameter name(s) to retrieve. If None, all stored parameters
+            are returned.
+        filesuffix : str
+            The filesuffix identifying the settings file to read from.
+            Defaults to the default ``settings.yml`` (empty string).
+
+        Returns
+        -------
+        dict
+            A dictionary containing the requested parameters and the
+            ``filesuffix`` of the file they were read from.
+        """
+        return self._read_settings_and_observations(
+            name='settings', filesuffix=filesuffix, keys=keys,
+            **kwargs)
+
+    def write_to_settings(self, data, filesuffix='', overwrite=False,
+                          **kwargs):
+        """Write parameters to a settings file.
+
+        Parameters
+        ----------
+        data : dict
+            The parameters to write.
+        filesuffix : str
+            The filesuffix identifying the settings file to write to.
+            The file is created if it does not exist yet.
+        overwrite : bool
+            If False (default), raises an error if any key in ``data`` is
+            already present in the file. If True, existing values are
+            overwritten silently.
+        """
+        return self._write_to_settings_and_observations(
+            name='settings', filesuffix=filesuffix, data=data,
+            overwrite=overwrite, **kwargs)
+
+    def get_stored_settings(self, filesuffix=''):
+        return self._get_stored_settings_and_observations(
+            name='settings', filesuffix=filesuffix)
 
     @property
     def observations_filesuffix(self):
@@ -4089,10 +4329,85 @@ class GlacierDirectory(object):
     @observations_filesuffix.setter
     def observations_filesuffix(self, value):
         self._observations_filesuffix = value
-        self.observations = self.get_observations(observations_filesuffix=value)
+        self.observations = self._get_observations_class(filesuffix=value)
 
-    def get_observations(self, observations_filesuffix):
-        return Observations(self, filesuffix=observations_filesuffix)
+    def _get_observations_class(self, filesuffix, **kwargs):
+        return Observations(self, filesuffix=filesuffix, **kwargs)
+
+    def create_new_observations(self, filesuffix, data=None,
+                                ignore_existing=False, overwrite=False,
+                                **kwargs):
+        """Create a new observations file (observations<filesuffix>.yml).
+
+        Parameters
+        ----------
+        filesuffix : str
+            Identifier for the new observations file. Use an empty string for
+            the default ``observations.yml``.
+        data : dict, optional
+            Observations to store in the new file. Each entry should follow
+            the standard structure with at least a ``'value'`` key and a
+            ``'year'`` or ``'period'`` key.
+        ignore_existing : bool
+            If False (default), raises an error if the file already exists.
+            If True, adds ``data`` to the existing file.
+        overwrite : bool
+            If False (default), raises an error if any key in ``data`` is
+            already present in the file. If True, existing values are
+            overwritten silently.
+        """
+        self._create_new_settings_or_observations(
+            name='observations', filesuffix=filesuffix, data=data,
+            ignore_existing=ignore_existing, overwrite=overwrite, **kwargs)
+
+    def read_observations(self, keys=None, filesuffix='',
+                          **kwargs):
+        """Read observations from an observations file.
+
+        Parameters
+        ----------
+        keys : str or list, optional
+            The observation name(s) to retrieve. If None, all stored
+            observations are returned.
+        filesuffix : str
+            The filesuffix identifying the observations file to read from.
+            Defaults to the default ``observations.yml`` (empty string).
+
+        Returns
+        -------
+        dict
+            A dictionary containing the requested observations and the
+            ``filesuffix`` of the file they were read from.
+        """
+        return self._read_settings_and_observations(
+            name='observations', filesuffix=filesuffix, keys=keys,
+            **kwargs)
+
+    def write_to_observations(self, data, filesuffix='',
+                              overwrite=False, **kwargs):
+        """Write observations to an observations file.
+
+        Parameters
+        ----------
+        data : dict
+            The observations to write. Each entry should follow the standard
+            structure with at least a ``'value'`` key and a ``'year'`` or
+            ``'period'`` key.
+        filesuffix : str
+            The filesuffix identifying the observations file to write to.
+            The file is created if it does not exist yet.
+        overwrite : bool
+            If False (default), raises an error if any key in ``data`` is
+            already present in the file. If True, existing values are
+            overwritten silently.
+        """
+        return self._write_to_settings_and_observations(
+            name='observations', filesuffix=filesuffix, data=data,
+            overwrite=overwrite, **kwargs)
+
+    def get_stored_observations(self, filesuffix=''):
+        return self._get_stored_settings_and_observations(
+            name='observations', filesuffix=filesuffix)
 
 
 @entity_task(log)
@@ -4122,8 +4437,8 @@ def copy_to_basedir(gdir, base_dir=None, setup='run'):
     New glacier directories from the copied folders
     """
     base_dir = os.path.abspath(base_dir)
-    new_dir = os.path.join(base_dir, gdir.rgi_id[:8], gdir.rgi_id[:11],
-                           gdir.rgi_id)
+    new_dir = os.path.join(base_dir, gdir.rgi_id[:-6],
+                           gdir.rgi_id[:-3], gdir.rgi_id)
     if setup == 'run':
         paths = ['model_flowlines', 'inversion_params', 'outlines',
                  'settings', 'climate_historical', 'glacier_grid',
@@ -4438,7 +4753,7 @@ class YAMLFileObject(object):
 class ModelSettings(YAMLFileObject):
     def __init__(self, gdir, filesuffix='', parent_filesuffix=None,
                  reset_parent_filesuffix=False, allow_empty=True,
-                 always_reload_data=True, add_default_values=True,
+                 always_reload_data=True, add_parent_values=False,
                  ):
         path = gdir.get_filepath('settings', filesuffix=filesuffix)
 
@@ -4474,10 +4789,10 @@ class ModelSettings(YAMLFileObject):
                                           # check if parent exists
                                           allow_empty=False,
                                           always_reload_data=always_reload_data,
-                                          add_default_values=add_default_values,
+                                          add_parent_values=add_parent_values,
                                           )
         self.gdir = gdir
-        self.add_default_values = add_default_values
+        self.add_default_values = add_parent_values
 
     def get(self, key):
         if self.always_reload_data:
@@ -4510,8 +4825,8 @@ class ModelSettings(YAMLFileObject):
                 pass
 
         try:
-            # if a key is used from defaults, also add it to the settings file
             value = self.defaults[key]
+            # optionally add key from defaults to the settings file
             if self.add_default_values:
                 self.set(key, value)
             return value
@@ -4521,7 +4836,7 @@ class ModelSettings(YAMLFileObject):
     def __repr__(self):
         return ("filesuffix: "
                 f"{self.filesuffix if self.filesuffix != '' else 'None'}\n"
-                f"data:{repr(self.data)}")
+                f"data: {repr(self.data)}")
 
 
 class Observations(YAMLFileObject):
@@ -4540,4 +4855,82 @@ class Observations(YAMLFileObject):
     def __repr__(self):
         return ("filesuffix: "
                 f"{self.filesuffix if self.filesuffix != '' else 'None'}\n"
-                f"data:{repr(self.data)}")
+                f"data: {repr(self.data)}")
+
+
+def compile_settings(gdirs, keys, filesuffix=''):
+    """Compile parameter values from settings files across one or more glacier
+    directories into a single DataFrame.
+
+    Parameters
+    ----------
+    gdirs : :py:class:`oggm.GlacierDirectory` or list thereof
+        The glacier directory or directories to read settings from.
+    keys : str or list
+        The parameter name(s) to retrieve from each settings file.
+    filesuffix : str or list of str
+        The filesuffix or list of filesuffixes identifying the settings files
+        to read from. Defaults to the default ``settings.yml`` (empty string).
+
+    Returns
+    -------
+    pandas.DataFrame
+        A DataFrame with one row per (gdir, filesuffix) combination. Columns
+        include ``rgi_id``, ``filesuffix``, and one column per requested
+        parameter.
+    """
+    if not isinstance(gdirs, list):
+        gdirs = [gdirs]
+
+    if not isinstance(filesuffix, list):
+        filesuffix = [filesuffix]
+
+    data = []
+    for gdir in gdirs:
+        for suffix in filesuffix:
+            out = {'rgi_id': gdir.rgi_id}
+            out.update(gdir.read_settings(
+                keys, filesuffix=suffix))
+            data.append(out)
+
+    return pd.DataFrame(data)
+
+
+def create_new_settings(gdirs, filesuffix, data=None,
+                        parent_filesuffix=None, ignore_existing=False,
+                        overwrite=False, **kwargs):
+    """Create a new settings file for each glacier directory in a list.
+
+    Convenience wrapper around :py:meth:`GlacierDirectory.create_new_settings`
+    that applies the same settings file to multiple glacier directories at
+    once.
+
+    Parameters
+    ----------
+    gdirs : list of :py:class:`oggm.GlacierDirectory`
+        The glacier directories to create settings files for.
+    filesuffix : str
+        Identifier for the new settings file. Use an empty string for the
+        default ``settings.yml``.
+    data : dict, optional
+        Parameters to store in the new file.
+    parent_filesuffix : str, optional
+        The filesuffix of the settings file to use as a fallback when a
+        parameter is not found in this file.
+    ignore_existing : bool
+        If False (default), raises an error if the file already exists.
+        If True, adds ``data`` to the existing file.
+    overwrite : bool
+        If False (default), raises an error if any key in ``data`` is already
+        present in the file. If True, existing values are overwritten silently.
+    """
+    for gdir in gdirs:
+        try:
+            gdir.create_new_settings(filesuffix=filesuffix,
+                                     data=data,
+                                     parent_filesuffix=parent_filesuffix,
+                                     ignore_existing=ignore_existing,
+                                     overwrite=overwrite,
+                                     **kwargs)
+        except ValueError as e:
+            raise ValueError(f"{gdir.rgi_id}: {e}")

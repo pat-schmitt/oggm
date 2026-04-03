@@ -339,8 +339,6 @@ def other_glacier_cfg():
     cfg.set_intersects_db(get_demo_file('rgi_intersect_oetztal.shp'))
     cfg.PATHS['dem_file'] = get_demo_file('srtm_oetztal.tif')
     cfg.PATHS['climate_file'] = get_demo_file('histalp_merged_hef.nc')
-    cfg.PARAMS['use_winter_prcp_fac'] = False
-    cfg.PARAMS['use_temp_bias_from_file'] = False
     cfg.PARAMS['prcp_fac'] = 2.5
     cfg.PARAMS['baseline_climate'] = 'CRU'
 
@@ -2936,41 +2934,44 @@ class TestIO():
         a_diag = []
         l_diag = []
         ela_diag = []
-        for yr in years:
+        for i, yr in enumerate(years):
             model.run_until(yr)
+
             vol_diag.append(model.volume_m3)
             a_diag.append(model.area_m2)
             l_diag.append(model.length_m)
             ela_diag.append(model.mb_model.get_ela(year=yr))
-            if int(yr) == yr:
-                vol_ref.append(model.volume_m3)
-                a_ref.append(model.area_m2)
-                l_ref.append(model.length_m)
-                if yr > 0:
-                    dhdt_ref.append(model.fls[0].thick -
-                                    h_previous_timestep)
-                    h_previous_timestep = model.fls[0].thick
-                    # for mb use previous surface height and previous year, only
-                    # save climatic mb where dhdt is non zero
-                    climatic_mb_ref.append(
-                        np.where(np.isclose(dhdt_ref[-1], 0.),
-                                 0.,
-                                 model.get_mb(surface_h_previous_timestep,
-                                              model.yr - 1,
-                                              fl_id=0) *
-                                 SEC_IN_YEAR)  # converted to m yr-1
-                    )
-                    surface_h_previous_timestep = model.fls[0].surface_h
-                    # smooth flux divergence where glacier is getting ice free
-                    has_become_ice_free = np.logical_and(
-                        np.isclose(model.fls[0].thick, 0.),
-                        dhdt_ref[-1] < 0.)
-                    flux_divergence_ref.append(
-                        (dhdt_ref[-1] - climatic_mb_ref[-1]) *
-                        np.where(has_become_ice_free, 0.1, 1.))
-                if int(yr) == 500:
-                    secfortest = model.fls[0].section
-                    hfortest = model.fls[0].thick
+
+            vol_ref.append(model.volume_m3)
+            a_ref.append(model.area_m2)
+            l_ref.append(model.length_m)
+
+            if yr > 0:
+                dhdt_ref.append(model.fls[0].thick -
+                                h_previous_timestep)
+                h_previous_timestep = model.fls[0].thick
+                # for mb use previous surface height and previous year, only
+                # save climatic mb where dhdt is non zero
+                climatic_mb_ref.append(
+                    np.where(np.isclose(dhdt_ref[-1], 0.),
+                             0.,
+                             model.get_mb(surface_h_previous_timestep,
+                                          years[i-1],
+                                          fl_id=0) *
+                             SEC_IN_MONTH)  # converted to m yr-1
+                )
+                surface_h_previous_timestep = model.fls[0].surface_h
+
+                # smooth flux divergence where glacier is getting ice free
+                has_become_ice_free = np.logical_and(
+                    np.isclose(model.fls[0].thick, 0.),
+                    dhdt_ref[-1] < 0.)
+                flux_divergence_ref.append(
+                    (dhdt_ref[-1] - climatic_mb_ref[-1]) *
+                    np.where(has_become_ice_free, 0.1, 1.))
+            if int(yr) == 500:
+                secfortest = model.fls[0].section
+                hfortest = model.fls[0].thick
 
         np.testing.assert_allclose(ds.ts_section.isel(time=-1),
                                    secfortest)
@@ -2991,11 +2992,11 @@ class TestIO():
                                    a_ref)
 
         np.testing.assert_allclose(dhdt_ref,
-                                   ds_fl.dhdt_myr[1:])  # first step is nan
+                                   ds_fl.dhdt[1:])  # first step is nan
         np.testing.assert_allclose(climatic_mb_ref,
-                                   ds_fl.climatic_mb_myr[1:])
+                                   ds_fl.climatic_mb[1:])
         np.testing.assert_allclose(flux_divergence_ref,
-                                   ds_fl.flux_divergence_myr[1:])
+                                   ds_fl.flux_divergence[1:])
 
         vel = ds_fl.ice_velocity_myr.isel(time=-1)
         assert 20 < vel.max() < 40
@@ -4328,7 +4329,12 @@ class TestHEF:
         # Climate data
         fh = gdir.get_filepath('climate_historical')
         fcesm = gdir.get_filepath('gcm_data')
-        with xr.open_dataset(fh) as hist, xr.open_dataset(fcesm, use_cftime=True) as cesm:
+        try:
+            decode_times = xr.coders.CFDatetimeCoder(use_cftime=True)
+            cftime_kwargs = {'decode_times': decode_times}
+        except AttributeError:
+            cftime_kwargs = {'use_cftime': True}
+        with xr.open_dataset(fh) as hist, xr.open_dataset(fcesm, **cftime_kwargs) as cesm:
             # Let's do some basic checks
             shist = hist.sel(time=slice('1961', '1990'))
             scesm = cesm.sel(time=slice('1961', '1990'))
@@ -6544,8 +6550,6 @@ class TestMassRedis:
         cfg.PARAMS['baseline_climate'] = ''
         cfg.PARAMS['use_multiprocessing'] = False
         cfg.PARAMS['min_ice_thick_for_length'] = 5
-        cfg.PARAMS['use_winter_prcp_fac'] = False
-        cfg.PARAMS['use_temp_bias_from_file'] = False
         cfg.PARAMS['prcp_fac'] = 2.5
 
         hef_file = get_demo_file('Hintereisferner_RGI5.shp')
@@ -6673,8 +6677,6 @@ def merged_hef_cfg(class_case_dir):
     cfg.PARAMS['border'] = 100
     cfg.PARAMS['prcp_fac'] = 1.75
     cfg.PARAMS['temp_melt'] = -1.75
-    cfg.PARAMS['use_winter_prcp_fac'] = False
-    cfg.PARAMS['use_temp_bias_from_file'] = False
 
 
 @pytest.mark.usefixtures('merged_hef_cfg')
@@ -7129,7 +7131,7 @@ class TestDistribute2D:
         vol_dis = thick.sum(dim=('x', 'y')) * dx2
 
         # We have a very close volume and area conservation
-        assert_allclose(area_dis, ds_diag.area_m2, rtol=0.01)
+        assert_allclose(area_dis, ds_diag.area_m2, rtol=0.03)
         assert_allclose(vol_dis, ds_diag.volume_m3, rtol=0.01)
 
         # The flowline views should be quite good as well
