@@ -146,6 +146,18 @@ class TestGIS(unittest.TestCase):
 
         assert gdir.status == 'Glacier or ice cap'
 
+        # If we start from workdir there used to be a bug
+        # It should also work like this
+        cfg.PARAMS['use_rgi_area'] = False
+        gdir = oggm.GlacierDirectory('RGI50-11.00897', base_dir=self.testdir)
+        # Close but not same
+        assert gdir.rgi_area_km2 != prev_area
+        assert gdir.cenlon != prev_lon
+        assert gdir.cenlat != prev_lat
+        np.testing.assert_allclose(gdir.rgi_area_km2, prev_area, atol=0.01)
+        np.testing.assert_allclose(gdir.cenlon, prev_lon, atol=1e-2)
+        np.testing.assert_allclose(gdir.cenlat, prev_lat, atol=1e-2)
+
     def test_reproject(self):
 
         hef_file = get_demo_file('Hintereisferner_RGI5.shp')
@@ -1982,12 +1994,12 @@ class TestClimate(unittest.TestCase):
         mbdf['perm6'] = mb_new.get_specific_mb(h, w, year=mbdf.index)
 
         # Check that all permutations of parameters gather the same results for differential evolution
-        # Differential evolution is stochastic and so may differ slighly (hence atol=0.1 here, to allow for 5%)
-        np.testing.assert_allclose(mbdf['perm1'].values, mbdf['perm2'].values, atol=0.1)
-        np.testing.assert_allclose(mbdf['perm2'].values, mbdf['perm3'].values, atol=0.1)
-        np.testing.assert_allclose(mbdf['perm3'].values, mbdf['perm4'].values, atol=0.1)
-        np.testing.assert_allclose(mbdf['perm4'].values, mbdf['perm5'].values, atol=0.1)
-        np.testing.assert_allclose(mbdf['perm5'].values, mbdf['perm6'].values, atol=0.1)
+        # Differential evolution is stochastic and so may differ slighly (hence rtol here)
+        np.testing.assert_allclose(mbdf['perm1'].values, mbdf['perm2'].values, rtol=0.01)
+        np.testing.assert_allclose(mbdf['perm2'].values, mbdf['perm3'].values, rtol=0.01)
+        np.testing.assert_allclose(mbdf['perm3'].values, mbdf['perm4'].values, rtol=0.01)
+        np.testing.assert_allclose(mbdf['perm4'].values, mbdf['perm5'].values, rtol=0.01)
+        np.testing.assert_allclose(mbdf['perm5'].values, mbdf['perm6'].values, rtol=0.01)
 
         # Now check what happens when we input unrealistic values, lets make an invalid boundary condition
         # This will force differential evolution to fail
@@ -1995,7 +2007,7 @@ class TestClimate(unittest.TestCase):
         with pytest.raises(RuntimeError):
             mb_calibration_to_rmsd(gdir, ref_df=ref_mb,
                                    calibrate_params=('melt_f',),
-                                   melt_f_min = np.nan)
+                                   melt_f_min=np.nan)
 
         # Some invalid bounds since max > min
         with pytest.raises(RuntimeError):
@@ -2003,7 +2015,7 @@ class TestClimate(unittest.TestCase):
                                    ref_df=ref_mb,
                                    calibrate_params=('temp_bias',),
                                    temp_bias_min=2.0,
-                                   temp_bias_max=-1.0, )
+                                   temp_bias_max=-1.0)
 
         # Impose infinite bounds, which will cause DE to fail
         with pytest.raises(RuntimeError):
@@ -2011,7 +2023,7 @@ class TestClimate(unittest.TestCase):
                                    ref_df=ref_mb,
                                    calibrate_params=('temp_bias',),
                                    temp_bias_min=-np.inf,
-                                   temp_bias_max=np.inf, )
+                                   temp_bias_max=np.inf)
 
         # Test for an acceptibly small bias
         np.testing.assert_allclose(0, (mbdf['melt_mb_rmsd'] - mbdf['ref_mb']).mean(), atol=100)
