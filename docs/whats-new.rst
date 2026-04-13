@@ -65,6 +65,19 @@ calibration choices or model structures. See
 `this blogpost <https://oggm.org/2026/01/07/oggm_v16-gdirs-and-projection-options/>`_
 for a summary.
 
+Contributors
+~~~~~~~~~~~~
+
+Thanks to all contributors to this release:
+`Nicolas Gampierakis <https://github.com/gampnico>`_,
+`Dan Goldberg <https://github.com/dngoldberg>`_,
+`Chloe Hancock <https://github.com/chloe-hancock>`_,
+`Marin Kneib <https://github.com/MarinKneib>`_,
+`Fabien Maussion <https://github.com/fmaussion>`_,
+`Patrick Schmitt <https://github.com/pat-schmitt>`_,
+`Lilian Schuster <https://github.com/lilianschuster>`_, and
+`Beatriz Recinos <https://github.com/bearecinos>`_!
+
 Enhancements
 ~~~~~~~~~~~~
 
