@@ -14,7 +14,7 @@ OGGM is a modular platform that supports novel modelling workflows,
 Our framework is designed to be flexible and adaptable, making it an
 ideal tool for a wide range of applications in glaciology and related fields.
 
-**This webpage is for the software documentation for version 1.6.3**:
+**This webpage is for the software documentation for the development version of OGGM**:
 
 - check-out :doc:`whats-new` to read about the updates in this version
 - check-out `docs.oggm.org/en/stable <https://docs.oggm.org/en/stable>`_ for the stable version

@@ -60,7 +60,7 @@ Release steps
     We also update the stable branch with `git cherrypick` for documentation
     only fixes that apply the current released version.
 9. Add a section for the next release (v.X.(Y+1)) to doc/whats-new.rst.
-    Add the section to index that it is not yet released.
+    Add the section to index.rst that it is not yet released.
 10. Commit your changes and push to master again:
       git commit -a -m 'Revert to dev version'
       git push origin master
