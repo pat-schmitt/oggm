@@ -61,9 +61,9 @@ class MassBalanceModel(object, metaclass=SuperclassMeta):
         self.valid_bounds = None
         self.hemisphere = None
         if gdir is None:
-            self.rho = cfg.PARAMS['ice_density']
+            self.ice_density = cfg.PARAMS['ice_density']
         else:
-            self.rho = gdir.settings['ice_density']
+            self.ice_density = gdir.settings['ice_density']
             self.gdir = gdir
         self.use_leap_years = use_leap_years
 
@@ -318,7 +318,7 @@ class MassBalanceModel(object, metaclass=SuperclassMeta):
             mbs *= unit_conversion(mb_yr)
             stack.append(mbs)
 
-        return set_array_type(stack) * self.rho
+        return set_array_type(stack) * self.ice_density
 
     def get_ela(self, year=None, **kwargs):
         """Get the equilibrium line altitude for a given year.
@@ -354,7 +354,7 @@ class MassBalanceModel(object, metaclass=SuperclassMeta):
 
                 def to_minimize(x):
                     return (self.get_annual_mb([x], year=mb_year, **kwargs)[0] *
-                            year_length * self.rho)
+                            year_length * self.ice_density)
                 stack.append(optimize.brentq(to_minimize, *self.valid_bounds,
                                              xtol=0.1))
 
@@ -378,26 +378,28 @@ class MassBalanceModel(object, metaclass=SuperclassMeta):
 class ScalarMassBalance(MassBalanceModel):
     """Constant mass balance, everywhere."""
 
-    def __init__(self, mb=0.):
+    def __init__(self, mb=0., use_leap_years=False):
         """ Initialize.
 
         Parameters
         ----------
         mb : float
             Fix the mass balance to a certain value (unit: [mm w.e. yr-1])
+        use_leap_years : bool
+            If the calendar should use leap years
         """
-        super(ScalarMassBalance, self).__init__()
+        super(ScalarMassBalance, self).__init__(use_leap_years=use_leap_years)
         self.hemisphere = 'nh'
         self.valid_bounds = [-2e4, 2e4]  # in m
         self._mb = mb
 
     def get_monthly_mb(self, heights, **kwargs):
         mb = np.asarray(heights) * 0 + self._mb
-        return mb / SEC_IN_YEAR / self.rho
+        return mb / SEC_IN_YEAR / self.ice_density
 
     def get_annual_mb(self, heights, **kwargs):
         mb = np.asarray(heights) * 0 + self._mb
-        return mb / SEC_IN_YEAR / self.rho
+        return mb / SEC_IN_YEAR / self.ice_density
 
     def is_year_valid(self, year):
         return True
@@ -417,7 +419,7 @@ class LinearMassBalance(MassBalanceModel):
     temp_bias
     """
 
-    def __init__(self, ela_h, grad=3., max_mb=None):
+    def __init__(self, ela_h, grad=3., max_mb=None, use_leap_years=False):
         """ Initialize.
 
         Parameters
@@ -428,8 +430,10 @@ class LinearMassBalance(MassBalanceModel):
             Mass balance gradient (unit: [mm w.e. yr-1 m-1])
         max_mb: float
             Cap the mass balance to a certain value (unit: [mm w.e. yr-1])
+        use_leap_years : bool
+            If the calendar should use leap years
         """
-        super(LinearMassBalance, self).__init__()
+        super(LinearMassBalance, self).__init__(use_leap_years=use_leap_years)
         self.hemisphere = 'nh'
         self.valid_bounds = [-1e4, 2e4]  # in m
         self.orig_ela_h = ela_h
@@ -457,7 +461,7 @@ class LinearMassBalance(MassBalanceModel):
         mb = (np.asarray(heights) - self.ela_h) * self.grad
         if self.max_mb is not None:
             clip_max(mb, self.max_mb, out=mb)
-        return mb / SEC_IN_YEAR / self.rho
+        return mb / SEC_IN_YEAR / self.ice_density
 
     def get_annual_mb(self, heights, **kwargs):
         return self.get_monthly_mb(heights, **kwargs)
@@ -949,8 +953,8 @@ class MonthlyTIModel(MassBalanceModel):
         sec_in_month = self.sec_in_month(year=year)
         mb_month -= (self.bias * sec_in_month / self.sec_in_year(year=year))
         if add_climate:
-            return mb_month / sec_in_month / self.rho, t, tmelt, prcp, prcpsol
-        return mb_month / sec_in_month / self.rho
+            return mb_month / sec_in_month / self.ice_density, t, tmelt, prcp, prcpsol
+        return mb_month / sec_in_month / self.ice_density
 
     def get_annual_mb(self, heights, year=None, add_climate=False, **kwargs):
         """Get annual mass balance.
@@ -986,7 +990,7 @@ class MonthlyTIModel(MassBalanceModel):
 
         mb_annual = np.sum(prcpsol - self.melt_f * tmelt, axis=1)
         mb_annual = ((mb_annual - self.bias) / self.sec_in_year(year=year) /
-                     self.rho)
+                     self.ice_density)
         if add_climate:
             return (mb_annual, t.mean(axis=1), tmelt.sum(axis=1),
                     prcp.sum(axis=1), prcpsol.sum(axis=1))
@@ -1228,9 +1232,9 @@ class DailyTIModel(MonthlyTIModel):
         mb_daily -= (self.bias * SEC_IN_DAY / self.sec_in_year(year=year))
 
         if add_climate:
-            return (mb_daily / SEC_IN_DAY / self.rho,
+            return (mb_daily / SEC_IN_DAY / self.ice_density,
                     t, tmelt, prcp, prcpsol)
-        return mb_daily / SEC_IN_DAY / self.rho
+        return mb_daily / SEC_IN_DAY / self.ice_density
 
     def get_monthly_mb(self,
                        heights: np.ndarray,
@@ -1272,10 +1276,10 @@ class DailyTIModel(MonthlyTIModel):
         mb_month -= (self.bias * sec_in_month / self.sec_in_year(year=year))
 
         if add_climate:
-            return (mb_month / sec_in_month / self.rho, t.mean(axis=1),
+            return (mb_month / sec_in_month / self.ice_density, t.mean(axis=1),
                     tmelt.sum(axis=1), prcp.sum(axis=1), prcpsol.sum(axis=1))
 
-        return mb_month / sec_in_month / self.rho
+        return mb_month / sec_in_month / self.ice_density
 
     def get_annual_mb(self,
                       heights: np.ndarray,
@@ -1314,7 +1318,7 @@ class DailyTIModel(MonthlyTIModel):
         mb_annual = np.sum(prcpsol - self.melt_f * tmelt,
                            axis=1)
         mb_annual = ((mb_annual - self.bias) / self.sec_in_year(year=year) /
-                     self.rho)
+                     self.ice_density)
 
         if add_climate:
             return (mb_annual, t.mean(axis=1), tmelt.sum(axis=1),
@@ -1335,8 +1339,8 @@ class SfcTypeTIModel(MassBalanceModel):
         settings_filesuffix: str = "",
         use_leap_years: bool = True,
         mb_model_class=DailyTIModel,
-        climate_resolution: str = "annual",
-        aging_frequency: str = "annual",
+        climate_resolution: str = "monthly",
+        aging_frequency: str = "monthly",
         melt_f_ratio: float = 0.5,
         melt_f_change: str = "neg_exp",
         tau_e: float = 1.0,
@@ -1352,6 +1356,8 @@ class SfcTypeTIModel(MassBalanceModel):
         use_previous_mbs: bool = False,
         store_snowline: bool = False,
         store_snowline_start_month: str = 'Oct',
+        snow_density: float = 300,
+        density_change: str = "neg_exp",
         **kwargs,
     ):
         """Surface type temperature index model.
@@ -1444,6 +1450,14 @@ class SfcTypeTIModel(MassBalanceModel):
             the snowline. E.g. with the default 'Oct', if you want to derive the
             snowline at Mar, all buckets starting from the previous Oct are
             considered.
+        snow_density: float, default 300
+            The assumed density of fresh snow.
+        density_change: str, default "neg_exp"
+            How the density from snow to firn to ice changes over time. The
+            options "linear" or "neg_exp" (see `tau_e` for the equation) just
+            mimik the implementations for melt_f (assuming a one to one relation
+            between melt_f and density). This is currently experimental and
+            needs further research.
         **kwargs:
             keyword arguments to pass to the mb_model_class
         """
@@ -1565,7 +1579,15 @@ class SfcTypeTIModel(MassBalanceModel):
         self.melt_f_ratio = melt_f_ratio
         self.melt_f_change = melt_f_change
         self.melt_f_buckets = None
+        self._melt_f_buckets_np = None
         self.set_melt_f_buckets()
+
+        # stuff related to varying density for each bucket
+        self.snow_density = snow_density
+        self.density_change = density_change
+        self.density_buckets = None
+        self._density_buckets_np = None
+        self.set_density_buckets()
 
         # define if some additonal outputs should be saved along the way
         if ((store_buckets == 'monthly' and
@@ -1709,6 +1731,20 @@ class SfcTypeTIModel(MassBalanceModel):
                             index=self.buckets_grid_point_label)
 
     @property
+    def columns_thickness_m(self):
+        # total thickness of all snow and firn buckets, ignoring ice bucket
+        return np.sum(self.buckets_thickness_m, axis=1)
+
+    @property
+    def buckets_thickness_m(self):
+        # individual thickness of each bucket, ignoring ice bucket
+        return self.mb_buckets_np[:, :-1] / self._density_buckets_np[:, :-1]
+
+    @property
+    def columns_mass_kg_per_sqm(self):
+        return np.sum(self.mb_buckets_np, axis=1)
+
+    @property
     def snowline(self):
         return np.array(self._snowline)
 
@@ -1776,6 +1812,38 @@ class SfcTypeTIModel(MassBalanceModel):
         else:
             raise NotImplementedError(f"melt_f_change: {self.melt_f_change}")
 
+        # save the melt_f values as pure numpy array
+        self._melt_f_buckets_np = np.asarray(
+            list(self.melt_f_buckets.values())[:-1], dtype=float)[None, :]
+
+    def set_density_buckets(self):
+        """Set the density for each bucket."""
+        if self.density_change == "linear":
+            self.density_buckets = dict(
+                zip(self.buckets,
+                    np.linspace(self.snow_density, self.ice_density,
+                                len(self.buckets),),
+                    )
+            )
+        elif self.density_change == "neg_exp":
+            if self.tau_e <= 0:
+                raise InvalidParamsError("`tau_e` must be above zero for"
+                                         "`density_change` = 'neg_exp'.")
+            buckets_linspace = np.linspace(0, self.spinup_years,
+                                           len(self.buckets))
+            self.density_buckets = dict(
+                zip(self.buckets,
+                    self.ice_density + (self.snow_density - self.ice_density) *
+                    np.exp(-buckets_linspace / self.tau_e),
+                    )
+            )
+        else:
+            raise NotImplementedError(f"density_change: {self.density_change}")
+
+        # save the density values as pure numpy array
+        self._density_buckets_np = np.asarray(
+            list(self.density_buckets.values()), dtype=float)[None, :]
+
     def _apply_climate_step_and_aging_to_buckets(
         self,
         heights: ArrayLike,
@@ -1841,8 +1909,7 @@ class SfcTypeTIModel(MassBalanceModel):
         # we need the sum of the old buckets later for calculating delta kg m-2
         snow_buckets_old_sum = snow_buckets_new.sum(axis=1)
         # melt_f per bucket without ice, (1, nr_buckets)
-        melt_f_buckets = np.asarray(list(self.melt_f_buckets.values())[:-1],
-                                    dtype=float)[None, :]
+        melt_f_buckets = self._melt_f_buckets_np
         # add one axis to tmelt for correct shape, (nr_grid_points, 1)
         tmelt = tmelt[:, None]
 
@@ -2140,6 +2207,7 @@ class SfcTypeTIModel(MassBalanceModel):
                       year: int or float,
                       add_climate: bool = False,
                       climatic_mb_or_ice_mb: str = 'climatic_mb',
+                      include_mb_model_heights: bool = False,
                       **kwargs,
                       ) -> np.float64 or tuple:
         """Get annual climatic mass balance or the ice mass balance.
@@ -2164,6 +2232,9 @@ class SfcTypeTIModel(MassBalanceModel):
             Defines if you want to retrive the climatic mass balance or the mass
             balance only for ice. The later one is meant to be used together
             with ice dynamics
+        include_mb_model_heights : bool, default False
+            If True we add the current bucket heights to the provided heights
+            to account for elevation feedback due to the bucket heights.
         **kwargs
             Extra arguments passed to subclasses of this method.
 
@@ -2175,6 +2246,10 @@ class SfcTypeTIModel(MassBalanceModel):
             temperature, the sums of melt temperature, total precipitation, and
             solid precipitation.
         """
+
+        # check if we should add the current bucket heights
+        if include_mb_model_heights:
+            heights = heights + self.columns_thickness_m
 
         # compute all steps up to the desired target year using constant heights
         self._run_until(heights=heights, year=year,
@@ -2208,7 +2283,7 @@ class SfcTypeTIModel(MassBalanceModel):
 
         # convert from kg m-2 to m s-1
         annual_mb = ((annual_mb - self.mbmod.bias) / self.sec_in_year(year) /
-                     self.mbmod.rho)
+                     self.mbmod.ice_density)
 
         if add_climate:
             # because of the use of different climate resolutions we always need
@@ -2225,6 +2300,7 @@ class SfcTypeTIModel(MassBalanceModel):
                        year: float,
                        add_climate: bool = False,
                        climatic_mb_or_ice_mb: str = 'climatic_mb',
+                       include_mb_model_heights: bool = False,
                        **kwargs,
                        ) -> np.float64 or tuple:
         """Get monthly climatic mass balance or the ice mass balance.
@@ -2249,6 +2325,9 @@ class SfcTypeTIModel(MassBalanceModel):
             Defines if you want to retrive the climatic mass balance or the mass
             balance only for ice. The later one is meant to be used together
             with ice dynamics
+        include_mb_model_heights : bool, default False
+            If True we add the current bucket heights to the provided heights
+            to account for elevation feedback due to the bucket heights.
         **kwargs
             Extra arguments passed to subclasses of this method.
 
@@ -2260,6 +2339,10 @@ class SfcTypeTIModel(MassBalanceModel):
             temperature, the sums of melt temperature, total precipitation, and
             solid precipitation.
         """
+
+        # check if we should add the current bucket heights
+        if include_mb_model_heights:
+            heights = heights + self.columns_thickness_m
 
         # compute all steps up to the desired target year using constant heights
         self._run_until(heights=heights, year=year,
@@ -2303,7 +2386,7 @@ class SfcTypeTIModel(MassBalanceModel):
         # convert from kg m-2 to m s-1
         monthly_mb = ((monthly_mb / self.sec_in_month(year=year) -
                        self.mbmod.bias / self.sec_in_year(year)) /
-                      self.mbmod.rho)
+                      self.mbmod.ice_density)
 
         if add_climate:
             # because of the use of different climate resolutions we always need
@@ -2320,6 +2403,7 @@ class SfcTypeTIModel(MassBalanceModel):
                      year: float,
                      add_climate: bool = False,
                      climatic_mb_or_ice_mb: str = 'climatic_mb',
+                     include_mb_model_heights: bool = False,
                      **kwargs,
                      ) -> np.float64 or tuple:
         """Get daily climatic mass balance or the ice mass balance.
@@ -2344,6 +2428,9 @@ class SfcTypeTIModel(MassBalanceModel):
             Defines if you want to retrive the climatic mass balance or the mass
             balance only for ice. The later one is meant to be used together
             with ice dynamics
+        include_mb_model_heights : bool, default False
+            If True we add the current bucket heights to the provided heights
+            to account for elevation feedback due to the bucket heights.
         **kwargs
             Extra arguments passed to subclasses of this method.
 
@@ -2355,6 +2442,10 @@ class SfcTypeTIModel(MassBalanceModel):
             temperature, the sums of melt temperature, total precipitation, and
             solid precipitation.
         """
+
+        # check if we should add the current bucket heights
+        if include_mb_model_heights:
+            heights = heights + self.columns_thickness_m
 
         # compute all steps up to the desired target year using constant heights
         self._run_until(heights=heights, year=year,
@@ -2382,7 +2473,7 @@ class SfcTypeTIModel(MassBalanceModel):
         # convert from kg m-2 to m s-1
         daily_mb = ((daily_mb / SEC_IN_DAY -
                      self.mbmod.bias / self.sec_in_year(year)) /
-                    self.mbmod.rho)
+                    self.mbmod.ice_density)
 
         if add_climate:
             # because of the use of different climate resolutions we always need
@@ -2959,7 +3050,7 @@ class MultipleFlowlineMassBalance(MassBalanceModel):
 
         self.valid_bounds = self.flowline_mb_models[-1].valid_bounds
         self.hemisphere = gdir.hemisphere
-        self.rho = self.flowline_mb_models[-1].rho
+        self.ice_density = self.flowline_mb_models[-1].ice_density
         self.use_leap_years = self.flowline_mb_models[-1].use_leap_years
 
     @property
@@ -2997,6 +3088,12 @@ class MultipleFlowlineMassBalance(MassBalanceModel):
 
     def is_year_valid(self, year):
         return self.flowline_mb_models[0].is_year_valid(year)
+
+    def sec_in_month(self, year):
+        return self.flowline_mb_models[0].sec_in_month(year)
+
+    def sec_in_year(self, year):
+        return self.flowline_mb_models[0].sec_in_year(year)
 
     def get_daily_mb(self, heights, year=None, fl_id=None, **kwargs):
         if fl_id is None:

@@ -122,6 +122,16 @@ class TestFuncs(object):
         assert m == 2
         assert d == 29
 
+        # test correct floor behaviour, this is very close to 1981.09.01
+        y, m, d = utils.floatyear_to_date(1981.6657534246575, return_day=True)
+        assert y == 1981
+        assert m == 8
+        assert d == 31
+        y, m, d = utils.floatyear_to_date(1981.6657534246576, return_day=True)
+        assert y == 1981
+        assert m == 9
+        assert d == 1
+
     def test_date_to_floatyear(self):
 
         r = utils.date_to_floatyear(0, 1)
@@ -236,6 +246,62 @@ class TestFuncs(object):
 
         ok = (years == y2) & (months == m2) & (days == d2)
         assert sum(~ok) == 0
+
+    def test_get_time_functions(self):
+        """Test scalar and array behavior of get_{days,seconds}_of_{year,month}."""
+        from oggm.utils._funcs import (get_days_of_year, get_seconds_of_year,
+                                       get_days_of_month, get_seconds_of_month)
+
+        # --- scalar input must return int ---
+        # no-leap: always 365
+        assert get_days_of_year(1980.0) == 365
+        assert isinstance(get_days_of_year(1980.0), int)
+        # leap-year aware: 1980 and 1984 are leap, 1981–1983 are not
+        assert get_days_of_year(1980.0, use_leap_years=True) == 366
+        assert isinstance(get_days_of_year(1980.0, use_leap_years=True), int)
+        assert get_days_of_year(1981.0, use_leap_years=True) == 365
+        assert get_days_of_year(1984.0, use_leap_years=True) == 366
+
+        assert get_seconds_of_year(1980.0) == 365 * 86400
+        assert get_seconds_of_year(1980.0, use_leap_years=True) == 366 * 86400
+        assert get_seconds_of_year(1981.0, use_leap_years=True) == 365 * 86400
+
+        # February: 29 days in a leap year, 28 otherwise
+        feb_1980 = utils.date_to_floatyear(1980, 2)
+        feb_1981 = utils.date_to_floatyear(1981, 2)
+        assert get_days_of_month(feb_1980, use_leap_years=True) == 29
+        assert get_days_of_month(feb_1981, use_leap_years=True) == 28
+        assert get_days_of_month(feb_1980, use_leap_years=False) == 28
+        assert isinstance(get_days_of_month(feb_1980, use_leap_years=True), int)
+
+        assert get_seconds_of_month(feb_1980, use_leap_years=True) == 29 * 86400
+        assert get_seconds_of_month(feb_1981, use_leap_years=True) == 28 * 86400
+
+        # --- array input must return np.ndarray of int64 ---
+        years = np.array([1980., 1981., 1982., 1983., 1984.])
+
+        days = get_days_of_year(years, use_leap_years=True)
+        assert isinstance(days, np.ndarray)
+        np.testing.assert_array_equal(days, [366, 365, 365, 365, 366])
+
+        secs = get_seconds_of_year(years, use_leap_years=True)
+        assert isinstance(secs, np.ndarray)
+        np.testing.assert_array_equal(secs, days * 86400)
+
+        # no-leap array: all 365
+        days_noleap = get_days_of_year(years, use_leap_years=False)
+        assert isinstance(days_noleap, np.ndarray)
+        np.testing.assert_array_equal(days_noleap, np.full(5, 365))
+
+        # monthly array for 1980 (leap year): February must have 29 days
+        monthly = utils.float_years_timeseries(1980., 1981.)
+        days_per_month = get_days_of_month(monthly, use_leap_years=True)
+        assert isinstance(days_per_month, np.ndarray)
+        _, m = utils.floatyear_to_date(monthly)
+        np.testing.assert_array_equal(days_per_month[m == 2], [29])
+
+        secs_per_month = get_seconds_of_month(monthly, use_leap_years=True)
+        np.testing.assert_array_equal(secs_per_month, days_per_month * 86400)
 
     @pytest.mark.parametrize("d,w", [
         (np.arange(10), np.arange(10)),
@@ -812,7 +878,7 @@ class TestWorkflowUtils:
                              'snowfall_off_glacier', 'snowfall_on_glacier',
                              'melt_residual_off_glacier',
                              'melt_residual_on_glacier', 'model_mb',
-                             'residual_mb', 'snow_bucket']
+                             'residual_mb', 'snow_bucket', 'mass']
         for gi in range(10):
             allowed_data_vars += [f'terminus_thick_{gi}']
 
@@ -860,6 +926,7 @@ class TestWorkflowUtils:
                 ds.loc[{'rgi_id': gdirs[0].rgi_id}]['melt_on_glacier'].values))
             assert np.all(np.isnan(
                 ds.loc[{'rgi_id': gdirs[0].rgi_id}]['melt_on_glacier_monthly'].values))
+            assert 'mass_kg' in ds.data_vars
 
         check_result(ds_1)
 
