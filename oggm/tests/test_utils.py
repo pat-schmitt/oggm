@@ -185,8 +185,8 @@ class TestFuncs(object):
             utils.float_years_timeseries(1)
 
         # test daily timeseries
-        time = pd.date_range('1/1/1800', periods=365.25 * 299, freq='D')
         myr = utils.float_years_timeseries(1800, 2099, daily=True)
+        time = pd.date_range('1/1/1800', periods=len(myr), freq='D')
         y, m, d = utils.floatyear_to_date(myr, return_day=True)
         np.testing.assert_array_equal(y, time.year)
         np.testing.assert_array_equal(m, time.month)

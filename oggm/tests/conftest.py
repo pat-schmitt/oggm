@@ -11,7 +11,7 @@ import pytest
 import shapely.geometry as shpg
 import matplotlib.pyplot as plt
 
-from oggm import cfg, tasks
+from oggm import cfg, tasks, DEFAULT_BASE_URL
 from oggm.core import flowline
 from oggm.tests.funcs import init_hef, get_test_dir
 from oggm import utils
@@ -194,6 +194,7 @@ def patch_download_url_allowlist():
         base_extra_v14.format('L2'),
         base_extra_v14l3.format('L3'),
         base_extra_l3,
+        DEFAULT_BASE_URL,
     ]
     cfg.PARAMS.do_log = old_do_log
 

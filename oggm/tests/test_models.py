@@ -633,13 +633,14 @@ class TestMassBalanceModels:
             - hemisphere: nh
             - ice_density: 900.0
             - use_leap_years: True
+            - mb_model_class: DailyTIModel
             - filename: climate_historical_daily
             - input_filesuffix: 
             - bias: 0.0
             - ys: 2000
             - ye: 2019
-            - aging_frequency: annual
-            - climate_resolution: annual
+            - aging_frequency: monthly
+            - climate_resolution: monthly
             - spinup_years: 6
             - save_spinup_mbs: False
             - tau_e: 1.0
@@ -650,8 +651,8 @@ class TestMassBalanceModels:
             - store_buckets: False
             - use_previous_mbs: False
             - store_snowline: False
-            - nr_timesteps: 20
-            - mb_buckets_year: 2000
+            - nr_timesteps: 240
+            - mb_buckets_year: 2000.0
         """)
         mb_mod = massbalance.SfcTypeTIModel(hef_gdir,
                                             settings_filesuffix='_daily',
@@ -3407,7 +3408,7 @@ class TestIO():
 
         # Check attrs
         assert ds.attrs['mb_model_class'] == 'LinearMassBalance'
-        assert ds.attrs['mb_model_rho'] == cfg.PARAMS['ice_density']
+        assert ds.attrs['mb_model_ice_density'] == cfg.PARAMS['ice_density']
         assert ds_diag.attrs['mb_model_class'] == 'LinearMassBalance'
         assert ds_diag.attrs['mb_model_ela_h'] == 2600
 
@@ -3452,7 +3453,7 @@ class TestIO():
                              model.get_mb(surface_h_previous_timestep,
                                           years[i-1],
                                           fl_id=0) *
-                             SEC_IN_MONTH)  # converted to m yr-1
+                             model._get_sec_in_month(years[i-1]))  # converted to m yr-1
                 )
                 surface_h_previous_timestep = model.fls[0].surface_h
 

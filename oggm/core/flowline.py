@@ -1273,11 +1273,6 @@ class FlowlineModel(object):
             self.to_geometry_netcdf(geom_path)
 
         nm = len(monthly_time)
-        if nm == 1:
-            yrs = [yrs]
-            hyrs = [hyrs]
-            months = [months]
-            hmonths = [hmonths]
 
         if do_geom or do_fl_diag:
             sects = [(np.zeros((nm, fl.nx)) * np.nan) for fl in self.fls]

@@ -637,8 +637,7 @@ class TestGdirSettings:
         rgi_ids = ['RGI60-11.00897']
         gdirs = workflow.init_glacier_directories(
             rgi_ids, from_prepro_level=3, prepro_border=160,
-            prepro_base_url='https://cluster.klima.uni-bremen.de/~oggm/gdirs/'
-                            'oggm_v1.6/L3-L5_files/2023.1/elev_bands/W5E5/')
+            prepro_base_url=oggm.DEFAULT_BASE_URL)
         gdir = gdirs[0]
         mb_calib_cluster = gdirs[0].read_json('mb_calib')
 
@@ -655,6 +654,7 @@ class TestGdirSettings:
         settings_informed_threestep['use_temp_bias_from_file'] = True
         settings_informed_threestep['use_winter_prcp_fac'] = True
         settings_informed_threestep['baseline_climate'] = 'W5E5'
+        settings_informed_threestep['prcp_fac'] = None
 
         workflow.execute_entity_task(tasks.mb_calibration_from_hugonnet_mb,
                                      gdirs,
@@ -675,13 +675,17 @@ class TestGdirSettings:
                         atol=1e-3)
 
         # recalibration without overwrite_gdir should raise an error
+        prcp_fac_original = settings_informed_threestep['prcp_fac']
         with pytest.raises(InvalidWorkflowError):
+            settings_informed_threestep['prcp_fac'] = None
             workflow.execute_entity_task(tasks.mb_calibration_from_hugonnet_mb,
                                          gdirs,
                                          overwrite_gdir=False,
                                          informed_threestep=True,
                                          settings_filesuffix='_informed_threestep',
                                          )
+
+        settings_informed_threestep['prcp_fac'] = prcp_fac_original
 
         # test MassBalance settings during dynamic run
         custom_settings = ModelSettings(gdir,
@@ -937,8 +941,7 @@ class TestGdirObservations:
         rgi_ids = ['RGI60-11.00897']
         gdirs = workflow.init_glacier_directories(
             rgi_ids, from_prepro_level=3, prepro_border=160,
-            prepro_base_url='https://cluster.klima.uni-bremen.de/~oggm/gdirs/'
-                            'oggm_v1.6/L3-L5_files/2023.1/elev_bands/W5E5/')
+            prepro_base_url=oggm.DEFAULT_BASE_URL)
         gdir = gdirs[0]
         mb_calib_cluster = gdirs[0].read_json('mb_calib')
 
@@ -947,6 +950,7 @@ class TestGdirObservations:
         settings_informed_threestep['use_temp_bias_from_file'] = True
         settings_informed_threestep['use_winter_prcp_fac'] = True
         settings_informed_threestep['baseline_climate'] = 'W5E5'
+        settings_informed_threestep['prcp_fac'] = None
         assert 'ref_mb' not in gdir.observations
         workflow.execute_entity_task(tasks.mb_calibration_from_hugonnet_mb,
                                      gdirs,
@@ -976,6 +980,7 @@ class TestGdirObservations:
                                      hugonnet_adapted['err'] / 2)
         gdir.observations_filesuffix = '_hugonnet_adapted'
         gdir.observations['ref_mb'] = hugonnet_adapted
+        settings_informed_threestep['prcp_fac'] = None
         workflow.execute_entity_task(tasks.mb_calibration_from_hugonnet_mb,
                                      gdirs,
                                      overwrite_gdir=True,

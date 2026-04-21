@@ -914,7 +914,7 @@ def invert_from_params(gdirs,
 
 
 @entity_task(log, writes=['inversion_output'])
-def calibrate_inversion_from_volume_entity_task(gdir, vol_ref_m3=None,
+def calibrate_inversion_from_volume_entity_task(gdir, ref_volume_m3=None,
                                                 fs=0, a_bounds=(0.1, 10),
                                                 apply_fs_on_mismatch=False,
                                                 error_on_mismatch=True,
@@ -930,7 +930,7 @@ def calibrate_inversion_from_volume_entity_task(gdir, vol_ref_m3=None,
     ----------
     gdir : :py:class:`oggm.GlacierDirectory`
         the glacier directory to process
-    vol_ref_m3 : float
+    ref_volume_m3 : float
         the reference volume in m3 to match. If float, take it,
         if pd.Series, select the glacier, if None, error.
     fs : float
@@ -953,12 +953,12 @@ def calibrate_inversion_from_volume_entity_task(gdir, vol_ref_m3=None,
     dict with the glacier volume and the calibrated parameters
     """
 
-    if vol_ref_m3 is None:
+    if ref_volume_m3 is None:
         raise InvalidParamsError('vol_ref_m3 must be provided (float or Series).')
 
-    if isinstance(vol_ref_m3, pd.Series):
+    if isinstance(ref_volume_m3, pd.Series):
         try:
-            vol_ref_m3 = vol_ref_m3.loc[gdir.rgi_id]
+            ref_volume_m3 = ref_volume_m3.loc[gdir.rgi_id]
         except KeyError:
             raise InvalidParamsError(f'vol_ref_m3 series has no entry '
                                      f'for {gdir.rgi_id}.')
@@ -983,7 +983,7 @@ def calibrate_inversion_from_volume_entity_task(gdir, vol_ref_m3=None,
         log.info(f'Volume calibration for {gdir.rgi_id} with '
                  f'A factor: {x} and fs: {fs}')
         vol = compute_vol(x)
-        return vol_ref_m3 - vol
+        return ref_volume_m3 - vol
 
     try:
         out_fac, r = optimization.brentq(to_minimize, *a_bounds,
@@ -1000,20 +1000,19 @@ def calibrate_inversion_from_volume_entity_task(gdir, vol_ref_m3=None,
         vol1 = compute_vol(a_bounds[0])
         vol2 = compute_vol(a_bounds[1])
         msg = (f'calibration from volume CAN\'T converge for {gdir.rgi_id} with fs={fs}.\n'
-               f'Bound values (m3):\nRef={vol_ref_m3:.0f} OGGM={vol1:.0f} for A factor {a_bounds[0]}\n'
-               f'Ref={vol_ref_m3:.0f} OGGM={vol2:.0f} for A factor {a_bounds[1]}')
-        if apply_fs_on_mismatch and fs == 0 and vol2 > vol_ref_m3:
-            return calibrate_inversion_from_volume(gdir,
-                                                   vol_ref_m3=vol_ref_m3,
-                                                   fs=5.7e-20, a_bounds=a_bounds,
-                                                   apply_fs_on_mismatch=False,
-                                                   error_on_mismatch=error_on_mismatch,
-                                                   filter_inversion_output=filter_inversion_output)
+               f'Bound values (m3):\nRef={ref_volume_m3:.0f} OGGM={vol1:.0f} for A factor {a_bounds[0]}\n'
+               f'Ref={ref_volume_m3:.0f} OGGM={vol2:.0f} for A factor {a_bounds[1]}')
+        if apply_fs_on_mismatch and fs == 0 and vol2 > ref_volume_m3:
+            return calibrate_inversion_from_volume_entity_task(
+                gdir, ref_volume_m3=ref_volume_m3,
+                fs=5.7e-20, a_bounds=a_bounds,
+                apply_fs_on_mismatch=False, error_on_mismatch=error_on_mismatch,
+                filter_inversion_output=filter_inversion_output)
         if error_on_mismatch:
             raise ValueError(msg)
 
-        out_fac = a_bounds[int(abs(vol_ref_m3 - vol1) >
-                               abs(vol_ref_m3 - vol2))]
+        out_fac = a_bounds[int(abs(ref_volume_m3 - vol1) >
+                               abs(ref_volume_m3 - vol2))]
         log.info(msg)
         log.info(f'We use A factor = {out_fac} and fs = {fs} and move on.')
 
