@@ -4065,7 +4065,10 @@ def run_from_climate_data(gdir, settings_filesuffix='',
                           init_model_filesuffix=None, init_model_yr=None,
                           init_model_fls=None, zero_initial_glacier=False,
                           bias=0, temperature_bias=None,
-                          precipitation_factor=None, **kwargs):
+                          precipitation_factor=None,
+                          mb_diagnostics_filesuffix=None,
+                          save_mb_diagnostics_filesuffix=None,
+                          **kwargs):
     """ Runs a glacier with climate input from e.g. CRU or a GCM.
 
     This will initialize a
@@ -4143,6 +4146,20 @@ def run_from_climate_data(gdir, settings_filesuffix='',
         starting from the chosen year. The only output affected are the
         glacier wide diagnostic files - all other outputs are set
         to constants during "spinup"
+    mb_diagnostics_filesuffix : str, optional
+        if provided, the mass balance model is loaded from a previously saved
+        ``mb_diagnostics{mb_diagnostics_filesuffix}.nc`` file via
+        :meth:`MultipleFlowlineMassBalance.load_from_file` instead of being
+        constructed from scratch.  ``climate_filename`` and
+        ``climate_input_filesuffix`` are forwarded so you can branch from a
+        historical state into a new scenario.  Ignored when ``mb_model`` is
+        also provided.
+    save_mb_diagnostics_filesuffix : str, optional
+        if provided, the mass balance model state is saved to
+        ``mb_diagnostics{save_mb_diagnostics_filesuffix}.nc`` after the run
+        completes, via :meth:`MultipleFlowlineMassBalance.save_to_file`.
+        Useful for saving a historical run before branching into multiple
+        projection scenarios.
     kwargs : dict
         kwargs to pass to the flowline_model_run task
     """
@@ -4183,13 +4200,27 @@ def run_from_climate_data(gdir, settings_filesuffix='',
         ys = ys if ys < max_ys else max_ys
 
     if mb_model is None:
-        mb_model = MultipleFlowlineMassBalance(gdir,
-                                               mb_model_class=mb_model_class,
-                                               filename=climate_filename,
-                                               bias=bias,
-                                               input_filesuffix=climate_input_filesuffix,
-                                               settings_filesuffix=settings_filesuffix,
-                                               )
+        if mb_diagnostics_filesuffix is not None:
+            # Only forward climate params when explicitly changed from defaults
+            _branch_fn = (climate_filename
+                          if climate_filename != 'climate_historical' else None)
+            _branch_isuf = (climate_input_filesuffix
+                            if climate_input_filesuffix != '' else None)
+            mb_model = MultipleFlowlineMassBalance.load_from_file(
+                gdir,
+                filesuffix=mb_diagnostics_filesuffix,
+                climate_filename=_branch_fn,
+                climate_input_filesuffix=_branch_isuf,
+            )
+        else:
+            mb_model = MultipleFlowlineMassBalance(
+                gdir,
+                mb_model_class=mb_model_class,
+                filename=climate_filename,
+                bias=bias,
+                input_filesuffix=climate_input_filesuffix,
+                settings_filesuffix=settings_filesuffix,
+            )
 
     if temperature_bias is not None:
         mb_model.temp_bias += temperature_bias
@@ -4200,16 +4231,21 @@ def run_from_climate_data(gdir, settings_filesuffix='',
         # Decide from climate (we can run the last year with data as well)
         ye = mb_model.flowline_mb_models[0].ye + 1
 
-    return flowline_model_run(gdir, settings_filesuffix=settings_filesuffix,
-                              output_filesuffix=output_filesuffix,
-                              mb_model=mb_model, ys=ys, ye=ye,
-                              store_monthly_step=store_monthly_step,
-                              store_model_geometry=store_model_geometry,
-                              store_fl_diagnostics=store_fl_diagnostics,
-                              init_model_fls=init_model_fls,
-                              zero_initial_glacier=zero_initial_glacier,
-                              fixed_geometry_spinup_yr=fixed_geometry_spinup_yr,
-                              **kwargs)
+    out = flowline_model_run(gdir, settings_filesuffix=settings_filesuffix,
+                             output_filesuffix=output_filesuffix,
+                             mb_model=mb_model, ys=ys, ye=ye,
+                             store_monthly_step=store_monthly_step,
+                             store_model_geometry=store_model_geometry,
+                             store_fl_diagnostics=store_fl_diagnostics,
+                             init_model_fls=init_model_fls,
+                             zero_initial_glacier=zero_initial_glacier,
+                             fixed_geometry_spinup_yr=fixed_geometry_spinup_yr,
+                             **kwargs)
+
+    if save_mb_diagnostics_filesuffix is not None:
+        out.mb_model.save_to_file(filesuffix=save_mb_diagnostics_filesuffix)
+
+    return out
 
 
 @entity_task(log)

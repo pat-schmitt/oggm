@@ -26,7 +26,7 @@ from oggm.utils import (SuperclassMeta, get_geodetic_mb_dataframe,
                         get_seconds_of_month, )
 from oggm.exceptions import (InvalidWorkflowError, InvalidParamsError,
                              MassBalanceCalibrationError)
-from oggm import entity_task
+from oggm import entity_task, __version__
 
 # Module logger
 log = logging.getLogger(__name__)
@@ -1472,6 +1472,7 @@ class SfcTypeTIModel(MassBalanceModel):
         # melt_f, prcp_fac and temp_bias
         if mb_model_class not in [MonthlyTIModel, DailyTIModel]:
             raise NotImplementedError(f"mb_model_class: {mb_model_class}")
+        self.mb_model_class = mb_model_class.__name__
         self.mbmod = mb_model_class(gdir=gdir,
                                     settings_filesuffix=settings_filesuffix,
                                     **kwargs)
@@ -1530,29 +1531,32 @@ class SfcTypeTIModel(MassBalanceModel):
 
         # defining the number of grid points and the spinup heights, either with
         # fl or hbins
-        self.hbins = hbins  # TODO: need to test with constant_mb (maybe hbins[::-1])
+        # TODO: need to test with constant_mb (maybe hbins[::-1])
+        self.hbins = hbins
+
+        # resolve the flowline into grid labels and spinup heights; the fl
+        # object itself is not stored — only the derived arrays are needed
         if fl is not None:
-            self.fl = fl
+            _fl = fl
         else:
-            if use_main_fl_from == 'inversion_flowlines':
-                self.fl = self.gdir.read_pickle("inversion_flowlines")[-1]
+            if self.hbins is not None:
+                _fl = None
+            elif use_main_fl_from == 'inversion_flowlines':
+                _fl = self.gdir.read_pickle("inversion_flowlines")[-1]
             elif use_main_fl_from == 'model_flowlines':
-                self.fl = self.gdir.read_pickle("model_flowlines")[-1]
-            elif self.hbins is not None:
-                # ok we are working with height bins here, don't need the fl
-                self.fl = None
+                _fl = self.gdir.read_pickle("model_flowlines")[-1]
             else:
                 raise InvalidParamsError("We need a flowline or height bins "
                                          "(hbins) for defining the number of "
                                          "buckets we want to compute!")
 
         # create labels for the grid_points and define heights used during spinup
-        if self.fl is not None:
+        if _fl is not None:
             # for the flowline we use the distance along the flowline
-            self.buckets_grid_point_label = self.fl.dx_meter * np.arange(self.fl.nx)
-            self.spinup_heights = self.fl.surface_h
+            self.buckets_grid_point_label = _fl.dx_meter * np.arange(_fl.nx)
+            self.spinup_heights = _fl.surface_h
         else:
-            # for hbins we just use numbers
+            # for hbins we just use numbers for the labels
             self.buckets_grid_point_label = np.arange(len(self.hbins))
             self.spinup_heights = self.hbins
 
@@ -1809,12 +1813,14 @@ class SfcTypeTIModel(MassBalanceModel):
                     np.exp(-buckets_linspace / self.tau_e),
                     )
             )
+            # ice bucket should be exactly melt_f (neg_exp only asymptotes)
+            self.melt_f_buckets[self.buckets[-1]] = self.melt_f
         else:
             raise NotImplementedError(f"melt_f_change: {self.melt_f_change}")
 
         # save the melt_f values as pure numpy array
         self._melt_f_buckets_np = np.asarray(
-            list(self.melt_f_buckets.values())[:-1], dtype=float)[None, :]
+            list(self.melt_f_buckets.values()), dtype=float)[None, :]
 
     def set_density_buckets(self):
         """Set the density for each bucket."""
@@ -1837,6 +1843,8 @@ class SfcTypeTIModel(MassBalanceModel):
                     np.exp(-buckets_linspace / self.tau_e),
                     )
             )
+            # ice bucket should be exactly ice_density (neg_exp only asymptotes)
+            self.density_buckets[self.buckets[-1]] = self.ice_density
         else:
             raise NotImplementedError(f"density_change: {self.density_change}")
 
@@ -1909,7 +1917,7 @@ class SfcTypeTIModel(MassBalanceModel):
         # we need the sum of the old buckets later for calculating delta kg m-2
         snow_buckets_old_sum = snow_buckets_new.sum(axis=1)
         # melt_f per bucket without ice, (1, nr_buckets)
-        melt_f_buckets = self._melt_f_buckets_np
+        melt_f_buckets_firn = self._melt_f_buckets_np[0, : -1]
         # add one axis to tmelt for correct shape, (nr_grid_points, 1)
         tmelt = tmelt[:, None]
 
@@ -1919,9 +1927,9 @@ class SfcTypeTIModel(MassBalanceModel):
         # now calculate cumulative tfm needed to melt each bucket and subtract
         # available tmelt, finally we convert back to mass in each bucket
         # (nr_grid_points, nr_buckets)
-        buckets_kg_m2_cumsum_left = (((snow_buckets_new / melt_f_buckets
+        buckets_kg_m2_cumsum_left = (((snow_buckets_new / melt_f_buckets_firn
                                        ).cumsum(axis=1) - tmelt) *
-                                     melt_f_buckets)
+                                     melt_f_buckets_firn)
 
         # when the cumsum is negative this bucket and all above have melted
         # completely, (nr_grid_points, nr_buckets)
@@ -1945,9 +1953,11 @@ class SfcTypeTIModel(MassBalanceModel):
         # melting all buckets
         all_melted_grid_points = (nr_melted_buckets == nr_buckets)
         if np.any(all_melted_grid_points):
+            # convert to tfm using melt_f of last firn bucket
             remaining_tfm = -(buckets_kg_m2_cumsum_left[all_melted_grid_points, -1] /
-                              melt_f_buckets[:, -1])
-            ice_melt_kg_m2 = remaining_tfm * self.melt_f_buckets['ice']
+                              melt_f_buckets_firn[-1])
+            # _melt_f_buckets_np[0, -1] is ice melt_f
+            ice_melt_kg_m2 = remaining_tfm * self._melt_f_buckets_np[0, -1]
             # we use -= here because there could be some newly formed ice
             # already in the ice bucket after aging
             self.mb_buckets_np[all_melted_grid_points, -1] -= ice_melt_kg_m2
@@ -2143,7 +2153,7 @@ class SfcTypeTIModel(MassBalanceModel):
         # calculate all needed time steps with the same heights
         if self.climate_resolution == 'annual':
             if mb_resolution == 'annual':
-                missing_float_years = range(self.mb_buckets_year, int(year) + 1)
+                missing_float_years = range(int(self.mb_buckets_year), int(year) + 1)
             else:
                 # mb_resolution can not be shorter than climate_resolution
                 raise NotImplementedError(f"mb_resolution: {mb_resolution}")
@@ -2495,6 +2505,375 @@ class SfcTypeTIModel(MassBalanceModel):
         # in dynamic spinup
         raise NotImplementedError("Getting the ela for SfcTypeTIModel is"
                                   "currently not supported.")
+
+    def _to_dataset(self):
+        """Build and return the xr.Dataset representing the full model state.
+
+        Used by :meth:`save_to_file` and by
+        :meth:`MultipleFlowlineMassBalance.save_to_file` (which writes each
+        flowline as a separate nc group in one shared file).
+        """
+        current_index = self._current_index
+
+        n_pts = self.mb_buckets_np.shape[0]
+        n_buckets = self.mb_buckets_np.shape[1]  # snow + firn + ice
+
+        # coordinates
+        coords = {
+            'grid_point': xr.DataArray(
+                np.arange(n_pts),
+                dims=['grid_point'],
+                attrs={'description': 'grid points along the flowline'},
+            ),
+            'bucket': xr.DataArray(
+                np.arange(n_buckets),
+                dims=['bucket'],
+                attrs={'description': 'buckets per grid point '
+                                      '(snow, firn_1 … firn_N, ice)'},
+            ),
+            'time': xr.DataArray(
+                np.array(list(self._year_to_index.keys()), dtype=float),
+                dims=['time'],
+                attrs={'description': 'Floating year'},
+            ),
+        }
+
+        # data variables
+        data_vars = {
+            # full bucket state including ice
+            'mb_buckets': xr.DataArray(
+                self.mb_buckets_np.copy(),
+                dims=['grid_point', 'bucket'],
+                attrs={'units': 'kg m-2',
+                       'long_name': 'bucket mass per grid point '
+                                    '(snow, firn_1 … firn_N, ice)'},
+            ),
+            # per-bucket arrays including ice
+            'melt_f_buckets': xr.DataArray(
+                np.array(list(self.melt_f_buckets.values())),
+                dims=['bucket'],
+                attrs={'units': 'kg m-2 day-1 K-1',
+                       'long_name': 'melt factor per bucket '
+                                    '(snow, firn_1 … firn_N, ice)'},
+            ),
+            'density_buckets': xr.DataArray(
+                np.array(list(self.density_buckets.values())),
+                dims=['bucket'],
+                attrs={'units': 'kg m-3',
+                       'long_name': 'density per bucket '
+                                    '(snow, firn_1 … firn_N, ice)'},
+            ),
+            # grid geometry
+            'buckets_grid_point_label': xr.DataArray(
+                self.buckets_grid_point_label,
+                dims=['grid_point'],
+                attrs={'long_name': 'grid point label '
+                                    '(distance along flowline or bin index)'},
+            ),
+            'spinup_heights': xr.DataArray(
+                self.spinup_heights,
+                dims=['grid_point'],
+                attrs={'units': 'm', 'long_name': 'heights used during spinup'},
+            ),
+            # computed MB output arrays (only filled portion);
+            # 'time' coordinate carries the float-year values
+            'climatic_mb': xr.DataArray(
+                self._climatic_mb[:current_index],
+                dims=['time', 'grid_point'],
+                attrs={'units': 'kg m-2',
+                       'long_name': 'climatic mass balance per timestep'},
+            ),
+            'ice_mb': xr.DataArray(
+                self._ice_mb[:current_index],
+                dims=['time', 'grid_point'],
+                attrs={'units': 'kg m-2',
+                       'long_name': 'ice mass balance per timestep'},
+            ),
+            'mb_heights_stored': xr.DataArray(
+                self._mb_heights[:current_index],
+                dims=['time', 'grid_point'],
+                attrs={'units': 'm',
+                       'long_name': 'heights used per timestep'},
+            ),
+        }
+
+        # conditional data variables
+        if self.store_snowline and len(self._snowline) > 0:
+            data_vars['snowline'] = xr.DataArray(
+                np.array(self._snowline),
+                dims=['snowline_step'],
+                attrs={'units': 'm', 'long_name': 'snowline elevation'},
+            )
+            data_vars['snowline_year'] = xr.DataArray(
+                np.array(self._snowline_year),
+                dims=['snowline_step'],
+                attrs={'long_name': 'float year of snowline record'},
+            )
+
+        if self.store_buckets_dates is not None:
+            data_vars['store_buckets_dates_arr'] = xr.DataArray(
+                np.array(self.store_buckets_dates, dtype=float),
+                dims=['bucket_date'],
+                attrs={'long_name': 'float years for which buckets are stored'},
+            )
+
+        if self.hbins is not None:
+            data_vars['hbins'] = xr.DataArray(
+                np.array(self.hbins),
+                dims=['grid_point'],
+                attrs={'units': 'm', 'long_name': 'height bins'},
+            )
+
+        # attributes (scalars / strings)
+        _snowline_month_to_str = {
+            11: 'Jan', 10: 'Feb', 9: 'Mar', 8: 'Apr', 7: 'May', 6: 'Jun',
+            5: 'Jul', 4: 'Aug', 3: 'Sep', 2: 'Oct', 1: 'Nov', 0: 'Dec',
+        }
+        store_snowline_start_month_str = (
+            _snowline_month_to_str[self._snowline_start_month]
+            if self.store_snowline else 'Oct'
+        )
+
+        attrs = {
+            # model class
+            'mb_model_class': self.mb_model_class,
+            # construction parameters
+            'settings_filesuffix': self.settings_filesuffix,
+            'use_leap_years': int(self.use_leap_years),
+            'climate_resolution': self.climate_resolution,
+            'aging_frequency': self.aging_frequency,
+            'melt_f_ratio': float(self.melt_f_ratio),
+            'melt_f_change': self.melt_f_change,
+            'tau_e': float(self.tau_e),
+            'ys': int(self.ys),
+            'spinup_years': int(self.spinup_years),
+            'save_spinup_mbs': int(self.save_spinup_mbs),
+            'use_previous_mbs': int(self.use_previous_mbs),
+            'store_snowline': int(self.store_snowline),
+            'store_snowline_start_month': store_snowline_start_month_str,
+            'store_buckets': str(self.store_buckets),
+            'snow_density': float(self.snow_density),
+            'ice_density': float(self.ice_density),
+            'density_change': self.density_change,
+            'bucket_names': ','.join(self.buckets),
+            # mbmod calibrated parameters
+            'melt_f': float(self.mbmod.melt_f),
+            'temp_bias': float(self.mbmod.temp_bias),
+            'prcp_fac': float(self.mbmod.prcp_fac),
+            'bias': float(self.mbmod.bias),
+            'mb_filename': self.mbmod.filename,
+            'mb_input_filesuffix': self.mbmod.input_filesuffix,
+            'mb_ys': int(self.mbmod.ys),
+            'mb_ye': int(self.mbmod.ye),
+            'temp_melt': float(self.mbmod.temp_melt),
+            'repeat': int(self.mbmod.repeat),
+            'fl_id': (int(self.mbmod.fl_id)
+                      if self.mbmod.fl_id is not None else -1),
+            # current runtime state
+            'mb_buckets_year': float(self.mb_buckets_year),
+            'current_index': int(current_index),
+        }
+
+        return xr.Dataset(data_vars=data_vars, coords=coords, attrs=attrs)
+
+    def save_to_file(self, filesuffix=""):
+        """Save the complete state of this model to a NetCDF file.
+
+        The file is written to the glacier directory as
+        ``mb_diagnostics{filesuffix}.nc``.  All information required to
+        reproduce an identical model via :meth:`load_from_file` is stored.
+
+        Parameters
+        ----------
+        filesuffix : str, optional
+            Appended to the output filename, e.g. ``'_v2'`` gives
+            ``mb_diagnostics_v2.nc``.
+        """
+        fp = self.gdir.get_filepath('mb_diagnostics', filesuffix=filesuffix)
+        self._to_dataset().to_netcdf(fp)
+
+    @classmethod
+    def load_from_file(cls, gdir, filesuffix="", group=None,
+                       climate_filename=None, climate_input_filesuffix=None):
+        """Load a previously saved :class:`SfcTypeTIModel` from a NetCDF file.
+
+        Reads ``mb_diagnostics{filesuffix}.nc`` from the glacier directory and
+        re-constructs the model.
+
+        **Continue** (``climate_filename`` and ``climate_input_filesuffix`` both
+        ``None``):
+        The complete runtime state (MB arrays, snowline) is
+        restored so that integration continues seamlessly using the same climate
+        input.
+
+        **Scenario branching** (either climate parameter supplied):
+        Only the bucket state is restored.  The MB output arrays are freshly
+        allocated for the new climate period (from ``int(mb_buckets_year)`` to
+        the new ``ye``).  ``current_index`` is reset to zero; the historical MB
+        record is not carried over.
+
+        Parameters
+        ----------
+        gdir : GlacierDirectory
+            The glacier directory containing the saved file.
+        filesuffix : str, optional
+            Suffix appended to ``mb_diagnostics`` when the file was saved.
+        group : str, optional
+            nc group to read from (used internally by
+            :meth:`MultipleFlowlineMassBalance.load_from_file`).
+        climate_filename : str, optional
+            Override the stored climate filename (e.g. ``'gcm_data'``).
+            If ``None``, the filename from the saved file is used.
+        climate_input_filesuffix : str, optional
+            Override the stored climate input filesuffix (e.g. ``'_ssp585'``).
+            If ``None``, the filesuffix from the saved file is used.
+
+        Returns
+        -------
+        SfcTypeTIModel
+        """
+        fp = gdir.get_filepath('mb_diagnostics', filesuffix=filesuffix)
+        new_climate = (climate_filename is not None or
+                       climate_input_filesuffix is not None)
+
+        open_kw = {'group': group} if group is not None else {}
+        with xr.open_dataset(fp, **open_kw) as ds:
+            attrs = ds.attrs
+
+            # mb_model_class
+            mb_model_class_str = attrs['mb_model_class']
+            if mb_model_class_str == 'DailyTIModel':
+                mb_model_class = DailyTIModel
+            elif mb_model_class_str == 'MonthlyTIModel':
+                mb_model_class = MonthlyTIModel
+            else:
+                raise NotImplementedError(
+                    f"mb_model_class: {mb_model_class_str}")
+
+            # store_buckets
+            store_buckets_str = attrs['store_buckets']
+            if store_buckets_str == 'False':
+                store_buckets_val = False
+            elif store_buckets_str == 'True':
+                # store_buckets was overridden to True by store_buckets_dates;
+                # pass False here and let the dates re-trigger the override
+                store_buckets_val = False
+            else:
+                store_buckets_val = store_buckets_str  # 'annual'/'monthly'/'daily'
+
+            # store_buckets_dates
+            store_buckets_dates = None
+            if 'store_buckets_dates_arr' in ds:
+                store_buckets_dates = list(
+                    ds['store_buckets_dates_arr'].values.tolist())
+
+            # saved arrays
+            saved_mb_buckets = ds['mb_buckets'].values      # (n_pts, n_buckets)
+            saved_spinup_heights = ds['spinup_heights'].values  # (n_pts,)
+            saved_grid_label = ds['buckets_grid_point_label'].values  # (n_pts,)
+
+            # fl_id
+            fl_id = int(attrs['fl_id'])
+            fl_id = None if fl_id == -1 else fl_id
+
+            # construct the model
+            # We always pass hbins=saved_spinup_heights so that the constructor
+            # builds the correct grid size without needing the original flowline.
+            # buckets_grid_point_label is overridden below to restore the exact
+            # saved labels (which may differ from np.arange(n_pts) when a
+            # flowline was originally used).
+            # spinup_buckets skips the actual spinup computation.
+            saved_mb_buckets_year = float(attrs['mb_buckets_year'])
+            if new_climate:
+                ys_for_model = int(saved_mb_buckets_year)
+                save_spinup_mbs_for_model = False
+            else:
+                ys_for_model = int(attrs['ys'])
+                save_spinup_mbs_for_model = bool(attrs['save_spinup_mbs'])
+
+            fn_for_model = (climate_filename
+                            if climate_filename is not None
+                            else attrs['mb_filename'])
+            isuf_for_model = (climate_input_filesuffix
+                              if climate_input_filesuffix is not None
+                              else attrs['mb_input_filesuffix'])
+
+            model = cls(
+                gdir=gdir,
+                settings_filesuffix=attrs['settings_filesuffix'],
+                use_leap_years=bool(attrs['use_leap_years']),
+                mb_model_class=mb_model_class,
+                climate_resolution=attrs['climate_resolution'],
+                aging_frequency=attrs['aging_frequency'],
+                melt_f_ratio=float(attrs['melt_f_ratio']),
+                melt_f_change=attrs['melt_f_change'],
+                tau_e=float(attrs['tau_e']),
+                ys=ys_for_model,
+                spinup_years=int(attrs['spinup_years']),
+                save_spinup_mbs=save_spinup_mbs_for_model,
+                spinup_buckets=saved_mb_buckets[:, :-1],
+                hbins=saved_spinup_heights,
+                store_buckets=store_buckets_val,
+                store_buckets_dates=store_buckets_dates,
+                use_previous_mbs=bool(attrs['use_previous_mbs']),
+                store_snowline=bool(attrs['store_snowline']),
+                store_snowline_start_month=attrs['store_snowline_start_month'],
+                snow_density=float(attrs['snow_density']),
+                density_change=attrs['density_change'],
+                # mbmod kwargs (passed through **kwargs to mb_model_class)
+                melt_f=float(attrs['melt_f']),
+                temp_bias=float(attrs['temp_bias']),
+                prcp_fac=float(attrs['prcp_fac']),
+                bias=float(attrs['bias']),
+                filename=fn_for_model,
+                input_filesuffix=isuf_for_model,
+                temp_melt=float(attrs['temp_melt']),
+                repeat=bool(attrs['repeat']),
+                fl_id=fl_id,
+                check_calib_params=False,
+            )
+
+            # Restore exact grid labels
+            model.buckets_grid_point_label = saved_grid_label
+
+            # _init_buckets already placed saved_mb_buckets[:,:-1] into
+            # mb_buckets_np via spinup_buckets and set mb_buckets_year = ys.
+            # Override with the full saved array (ice column included).
+            model.mb_buckets_np[:] = saved_mb_buckets
+            model.mb_buckets_year = saved_mb_buckets_year
+
+            if new_climate:
+                # start fresh, no historical MB to restore
+                pass
+            else:
+                # restore full MB history
+                current_index = int(attrs['current_index'])
+                model._current_index = current_index
+
+                if current_index > 0:
+                    model._climatic_mb[:current_index] = (
+                        ds['climatic_mb'].values)
+                    model._ice_mb[:current_index] = ds['ice_mb'].values
+                    model._mb_heights[:current_index] = (
+                        ds['mb_heights_stored'].values)
+
+                    # 'time' coordinate holds the float-year keys; array
+                    # indices are simply 0…N-1
+                    y2i_keys = ds.coords['time'].values
+                    model._year_to_index = {
+                        float(k): int(i)
+                        for i, k in enumerate(y2i_keys)
+                    }
+
+                # snowline state
+                if bool(attrs['store_snowline']) and 'snowline' in ds:
+                    model._snowline = list(ds['snowline'].values.tolist())
+                    model._snowline_year = list(
+                        ds['snowline_year'].values.tolist())
+                    # snowline_inf_values is repopulated automatically on the
+                    # next climate step
+
+        return model
 
 
 class ConstantMassBalance(MassBalanceModel):
@@ -3010,6 +3389,7 @@ class MultipleFlowlineMassBalance(MassBalanceModel):
         """
 
         gdir.settings_filesuffix = settings_filesuffix
+        self.gdir = gdir
 
         # Read in the flowlines
         if use_inversion_flowlines:
@@ -3267,6 +3647,95 @@ class MultipleFlowlineMassBalance(MassBalanceModel):
             stack.append(weighted_average_1d(elas, areas))
 
         return set_array_type(stack)
+
+    def save_to_file(self, filesuffix=""):
+        """Save the state of all flowline MB models to a single NetCDF file.
+
+        Writes ``mb_diagnostics{filesuffix}.nc`` to the glacier directory.
+        Each :class:`SfcTypeTIModel` is stored as a separate nc group named
+        (``fl_0``, ``fl_1``, ...) matching the flowline index. The root of the
+        file carries a ``n_flowlines`` attribute so that :meth:`load_from_file`
+        knows how many groups to expect.
+
+        Only supported when all ``flowline_mb_models`` are instances of
+        :class:`SfcTypeTIModel`.
+
+        Parameters
+        ----------
+        filesuffix : str, optional
+            Appended to the output filename.
+        """
+        fp = self.gdir.get_filepath('mb_diagnostics', filesuffix=filesuffix)
+
+        # Welcome ds
+        ds = xr.Dataset()
+        ds.attrs['description'] = ('OGGM SfcTypeTIModel state on flowlines. '
+                                   'Check groups for data.')
+        ds.attrs['oggm_version'] = __version__
+        ds.attrs['n_flowlines'] = len(self.flowline_mb_models)
+        ds.to_netcdf(fp, 'w')
+        # append each state as a group
+        for i, mb_mod in enumerate(self.flowline_mb_models):
+            mb_mod._to_dataset().to_netcdf(fp, group=f'fl_{i}', mode='a')
+
+    @classmethod
+    def load_from_file(cls, gdir, filesuffix="", climate_filename=None,
+                       climate_input_filesuffix=None):
+        """Load a :class:`MultipleFlowlineMassBalance` from a saved nc file.
+
+        Reads ``mb_diagnostics{filesuffix}.nc``, reconstructs one
+        :class:`SfcTypeTIModel` per flowline from the corresponding nc group,
+        and returns a fully initialised :class:`MultipleFlowlineMassBalance`.
+
+        To continue with same climate input leave ``climate_filename`` and
+        ``climate_input_filesuffix`` as ``None``. For scenario branching
+        (switch to a new climate file while keeping the bucket state), supply
+        the new climate parameters. The MB history is then reset and the
+        output arrays are sized for the new climate period.
+
+        Parameters
+        ----------
+        gdir : GlacierDirectory
+        filesuffix : str, optional
+        climate_filename : str, optional
+            Override the stored climate filename (e.g. ``'gcm_data'``).
+        climate_input_filesuffix : str, optional
+            Override the stored climate input filesuffix (e.g. ``'_ssp585'``).
+
+        Returns
+        -------
+        MultipleFlowlineMassBalance
+        """
+        fp = gdir.get_filepath('mb_diagnostics', filesuffix=filesuffix)
+
+        with xr.open_dataset(fp) as ds_root:
+            n_fls = int(ds_root.attrs['n_flowlines'])
+
+        flowline_mb_models = [
+            SfcTypeTIModel.load_from_file(
+                gdir,
+                filesuffix=filesuffix,
+                group=f'fl_{i}',
+                climate_filename=climate_filename,
+                climate_input_filesuffix=climate_input_filesuffix,
+            )
+            for i in range(n_fls)
+        ]
+
+        # Build without triggering __init__ (which would re-run spinup and
+        # re-read flowlines from disk).
+        obj = object.__new__(cls)
+        try:
+            obj.fls = gdir.read_pickle('model_flowlines')
+        except FileNotFoundError:
+            obj.fls = None
+        obj.gdir = gdir
+        obj.flowline_mb_models = flowline_mb_models
+        obj.valid_bounds = flowline_mb_models[-1].valid_bounds
+        obj.hemisphere = gdir.hemisphere
+        obj.ice_density = flowline_mb_models[-1].ice_density
+        obj.use_leap_years = flowline_mb_models[-1].use_leap_years
+        return obj
 
 
 def calving_mb(gdir):
