@@ -66,7 +66,7 @@ def get_gswp3_w5e5_file(dataset='GSWP3_W5E5', var=None):
     basenames = _get_w5e5_basenames()
 
     if var not in basenames[dataset].keys():
-        raise InvalidParamsError(f'{dataset}variable {var} not '
+        raise InvalidParamsError(f'{dataset} variable {var} not '
                                  f'in {basenames[dataset].keys()}')
 
     # File to look for
