@@ -751,8 +751,7 @@ class TestGdirSettings:
         rgi_ids = ['RGI60-11.00897']
         gdirs = workflow.init_glacier_directories(
             rgi_ids, from_prepro_level=3, prepro_border=160,
-            prepro_base_url='https://cluster.klima.uni-bremen.de/~oggm/gdirs/'
-                            'oggm_v1.6/L3-L5_files/2023.1/elev_bands/W5E5/')
+            prepro_base_url=oggm.DEFAULT_BASE_URL)
         gdir = gdirs[0]
 
         # create a test settings file with a larger glen a parameter
@@ -823,8 +822,7 @@ class TestGdirSettings:
         rgi_ids = ['RGI60-11.00897']
         gdirs = workflow.init_glacier_directories(
             rgi_ids, from_prepro_level=3, prepro_border=160,
-            prepro_base_url='https://cluster.klima.uni-bremen.de/~oggm/gdirs/'
-                            'oggm_v1.6/L3-L5_files/2023.1/elev_bands/W5E5/')
+            prepro_base_url=oggm.DEFAULT_BASE_URL)
         gdir = gdirs[0]
 
         # for reference, perform an inversion with default paramters
