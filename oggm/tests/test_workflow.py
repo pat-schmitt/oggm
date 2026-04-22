@@ -1,6 +1,7 @@
 import os
 import shutil
 import unittest
+from packaging.version import Version
 import pickle
 import pytest
 import json
@@ -632,6 +633,8 @@ def with_class_wd(request, test_dir, hef_gdir):
 @pytest.mark.usefixtures('with_class_wd')
 class TestGdirSettings:
 
+    @pytest.mark.skipif((Version(np.__version__) < Version('2.0')),
+                        reason='requires NumPy >= 2.0')
     @pytest.mark.slow
     def test_settings_massbalance(self):
         rgi_ids = ['RGI60-11.00897']
@@ -746,6 +749,8 @@ class TestGdirSettings:
         # Now it should be W5E5
         assert gdir.get_climate_info()['baseline_climate_source'] == 'ERA5'
 
+    @pytest.mark.skipif((Version(np.__version__) < Version('2.0')),
+                        reason='requires NumPy >= 2.0')
     @pytest.mark.slow
     def test_settings_dynamics(self):
         rgi_ids = ['RGI60-11.00897']
@@ -817,6 +822,8 @@ class TestGdirSettings:
 
         assert np.all(ds_orig_thick.length >= ds_larger_thick.length)
 
+    @pytest.mark.skipif((Version(np.__version__) < Version('2.0')),
+                        reason='requires NumPy >= 2.0')
     @pytest.mark.slow
     def test_settings_inversion(self):
         rgi_ids = ['RGI60-11.00897']
@@ -934,6 +941,8 @@ class TestGdirSettings:
 @pytest.mark.usefixtures('with_class_wd')
 class TestGdirObservations:
 
+    @pytest.mark.skipif((Version(np.__version__) < Version('2.0')),
+                        reason='requires NumPy >= 2.0')
     @pytest.mark.slow
     def test_observations_ref_mb(self):
         rgi_ids = ['RGI60-11.00897']
