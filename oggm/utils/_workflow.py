@@ -1155,7 +1155,9 @@ def compile_run_output(gdirs, path=True, input_filesuffix='',
                          # as it is a variable in gdirs v1.6 2023.1
                          'area_m2', 'area_m2_min_h', 'length_m', 'calving_m3',
                          'calving_rate_myr', 'off_area',
-                         'on_area', 'model_mb', 'is_fixed_geometry_spinup']
+                         'on_area', 'model_mb', 'is_fixed_geometry_spinup',
+                         'volume_ice_m3', 'volume_firn_m3', 'mass_kg',
+                         'mass_ice_kg', 'mass_firn_kg']
     for gi in range(10):
         allowed_data_vars += [f'terminus_thick_{gi}']
     # this hydro variables can be _monthly or _daily
@@ -4801,29 +4803,32 @@ class ModelSettings(YAMLFileObject):
         if key in self.data:
             return self.data[key]
 
-        if key in ['bias', 'melt_f', 'prcp_fac', 'temp_bias',
-                   'mb_global_params', 'baseline_climate_source']:
-            # this is for backwards compatibility when mb_calib files was used
-            try:
-                value = self.gdir.read_json('mb_calib')[key]
-                if self.add_default_values:
-                    self.set(key, value)
-                return value
-            except FileNotFoundError:
-                pass
+        # the following is for backwards compatibility
+        if self.data['parent_filesuffix'] == 'cfg.PARAMS':
+            if key in ['bias', 'melt_f', 'prcp_fac', 'temp_bias',
+                       'mb_global_params', 'baseline_climate_source']:
+                # this is for backwards compatibility when mb_calib files was used
+                try:
+                    value = self.gdir.read_json('mb_calib')[key]
+                    if self.add_default_values:
+                        self.set(key, value)
+                    return value
+                except FileNotFoundError:
+                    pass
 
-        if key in ['inversion_glen_a', 'inversion_fs', 'calving_water_level',
-                   ]:  # TODO: add calving variables
-            # this is for backwards compatibility when some parameters were
-            # stored in the diagnostics
-            try:
-                value = self.gdir.get_diagnostics()[key]
-                if self.add_default_values:
-                    self.set(key, value)
-                return value
-            except KeyError:
-                pass
+            if key in ['inversion_glen_a', 'inversion_fs', 'calving_water_level',
+                       ]:  # TODO: add calving variables
+                # this is for backwards compatibility when some parameters were
+                # stored in the diagnostics
+                try:
+                    value = self.gdir.get_diagnostics()[key]
+                    if self.add_default_values:
+                        self.set(key, value)
+                    return value
+                except KeyError:
+                    pass
 
+        # We try to get the parameter from the parent
         try:
             value = self.defaults[key]
             # optionally add key from defaults to the settings file

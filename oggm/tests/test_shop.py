@@ -335,7 +335,7 @@ class Test_w5e5:
             # (also ISIMIP3b) and all glaciers in this notebook:
             # https://nbviewer.org/urls/cluster.klima.uni-bremen.de/~oggm/
             # climate/notebooks/flatten_glacier_gridpoint_tests.ipynb
-            if d == ['GSWP3_W5E5', 'GSWP3_W5E5_daily']:
+            if d in ['GSWP3_W5E5', 'GSWP3_W5E5_daily']:
                 res = 0.5
                 with xr.open_dataset(w5e5.get_gswp3_w5e5_file(d, 'inv')) as dinv:
                     dinv = dinv.load()

@@ -262,6 +262,12 @@ BASENAMES['climate_historical_daily'] = ('climate_historical_daily.nc', _doc)
 _doc = "A dict containing the glacier's mass balance calibration parameters."
 BASENAMES['mb_calib'] = ('mb_calib.json', _doc)
 
+_doc = ('A group netcdf file containing the complete state of a SfcTypeTIModel '
+        'instance. This is useful for projeciton runs to start from historical '
+        'snow bucket state. Netcdf groups = fl_{i}, with i between 0 and '
+        'n_flowlines - 1')
+BASENAMES['mb_diagnostics'] = ('mb_diagnostics.nc', _doc)
+
 _doc = 'The monthly GCM climate timeseries stored in a netCDF file.'
 BASENAMES['gcm_data'] = ('gcm_data.nc', _doc)
 

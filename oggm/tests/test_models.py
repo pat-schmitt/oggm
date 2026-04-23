@@ -545,7 +545,7 @@ class TestMassBalanceModels:
         np.testing.assert_allclose(np.sum(prcpsol_m, axis=0), prcpsol_a)
         np.testing.assert_allclose((np.sum(prcpsol_m, axis=0) -
                                     mb_mod.melt_f * np.sum(tmelt_m,axis=0)) /
-                                   mb_mod.sec_in_year(yr) / mb_mod.rho,
+                                   mb_mod.sec_in_year(yr) / mb_mod.ice_density,
                                    mb_annual)
 
         # test implementation of days of month in MonthlyTIModel.get_annual_mb
@@ -569,7 +569,7 @@ class TestMassBalanceModels:
             - temp_bias: 0.00
             - bias: 0.00
             - settings_filesuffix: 
-            - rho: 900.0
+            - ice_density: 900.0
             - use_leap_years: False
             - filename: climate_historical
             - input_filesuffix: 
@@ -603,7 +603,7 @@ class TestMassBalanceModels:
             - temp_bias: 0.00
             - bias: 0.00
             - settings_filesuffix: _daily
-            - rho: 900.0
+            - ice_density: 900.0
             - use_leap_years: True
             - filename: climate_historical_daily
             - input_filesuffix: 
@@ -631,25 +631,28 @@ class TestMassBalanceModels:
           Attributes:
             - settings_filesuffix: _daily
             - hemisphere: nh
-            - rho: 900.0
+            - ice_density: 900.0
             - use_leap_years: True
+            - mb_model_class: DailyTIModel
             - filename: climate_historical_daily
             - input_filesuffix: 
             - bias: 0.0
             - ys: 2000
             - ye: 2019
-            - aging_frequency: annual
-            - climate_resolution: annual
+            - aging_frequency: monthly
+            - climate_resolution: monthly
             - spinup_years: 6
             - save_spinup_mbs: False
             - tau_e: 1.0
             - melt_f_ratio: 0.5
             - melt_f_change: neg_exp
+            - snow_density: 300
+            - density_change: neg_exp
             - store_buckets: False
             - use_previous_mbs: False
             - store_snowline: False
-            - nr_timesteps: 20
-            - mb_buckets_year: 2000
+            - nr_timesteps: 240
+            - mb_buckets_year: 2000.0
         """)
         mb_mod = massbalance.SfcTypeTIModel(hef_gdir,
                                             settings_filesuffix='_daily',
@@ -969,7 +972,7 @@ class TestMassBalanceModels:
             assert isinstance(ela_z, float)
             assert ela_z == ela_array
             totest = (mb_mod.flowline_mb_models[-1].get_annual_mb([ela_z], year=yr) *
-                      mb_mod.flowline_mb_models[-1].sec_in_year(yr) * mb_mod.rho)
+                      mb_mod.flowline_mb_models[-1].sec_in_year(yr) * mb_mod.ice_density)
             assert_allclose(totest[0], 0, atol=1)
 
     def test_daily_mb_model(self, hef_gdir):
@@ -1243,7 +1246,7 @@ class TestMassBalanceModels:
         mb_mod = massbalance.DailyTIModel(gdir, settings_filesuffix='_daily')
         for yr in mbdf.index.values:
             my_mb_on_h = (mb_mod.get_annual_mb(h, yr) * mb_mod.sec_in_year(yr) *
-                          mb_mod.rho)
+                          mb_mod.ice_density)
             mbdf.loc[yr, 'MY_MB'] = np.average(my_mb_on_h, weights=w)
 
         np.testing.assert_allclose(mbdf['ANNUAL_BALANCE'].mean(),
@@ -1257,7 +1260,7 @@ class TestMassBalanceModels:
                                           bias=0)
         for yr in mbdf.index.values:
             my_mb_on_h = (mb_mod.get_annual_mb(h, yr) * mb_mod.sec_in_year(yr) *
-                          mb_mod.rho)
+                          mb_mod.ice_density)
             mbdf.loc[yr, 'MY_MB'] = np.average(my_mb_on_h, weights=w)
 
         np.testing.assert_allclose(mbdf['ANNUAL_BALANCE'].mean(),
@@ -1267,11 +1270,11 @@ class TestMassBalanceModels:
         mb_mod = massbalance.DailyTIModel(gdir, settings_filesuffix='_daily')
         for yr in mbdf.index.values:
             my_mb_on_h = (mb_mod.get_annual_mb(h, yr) * mb_mod.sec_in_year(yr) *
-                          mb_mod.rho)
+                          mb_mod.ice_density)
             mbdf.loc[yr, 'MY_MB'] = np.average(my_mb_on_h, weights=w)
             mb_mod.temp_bias = 1
             my_mb_on_h = (mb_mod.get_annual_mb(h, yr) * mb_mod.sec_in_year(yr) *
-                          mb_mod.rho)
+                          mb_mod.ice_density)
             mbdf.loc[yr, 'BIASED_MB'] = np.average(my_mb_on_h, weights=w)
             mb_mod.temp_bias = 0
 
@@ -1392,22 +1395,26 @@ class TestMassBalanceModels:
             else:
                 raise NotImplementedError(f"ti_model: {ti_model}")
 
-            mb_mod = massbalance.SfcTypeTIModel(
-                gdir,
-                settings_filesuffix=settings_filesuffix,
-                mb_model_class=mb_model_class,
-                ys=2000,
-                climate_resolution=clim_res,
-                aging_frequency=aging,
-                save_spinup_mbs=True,
-                store_buckets=clim_res,
-                use_previous_mbs=True,
-                check_calib_params=False,
-                input_filesuffix=input_filesuffix,
-            )
+            def get_fresh_mb_mod(settings_filesuffix, mb_model_class,
+                                 input_filesuffix, clim_res, aging):
+                return massbalance.SfcTypeTIModel(
+                    gdir,
+                    settings_filesuffix=settings_filesuffix,
+                    mb_model_class=mb_model_class,
+                    ys=2000,
+                    climate_resolution=clim_res,
+                    aging_frequency=aging,
+                    save_spinup_mbs=True,
+                    store_buckets=clim_res,
+                    use_previous_mbs=True,
+                    check_calib_params=False,
+                    input_filesuffix=input_filesuffix,
+                )
+            mb_mod = get_fresh_mb_mod(settings_filesuffix, mb_model_class,
+                                      input_filesuffix, clim_res, aging)
 
             assert inv_fl.nx == mb_mod.mb_buckets_np.shape[0]
-            np.testing.assert_allclose(inv_fl.surface_h, mb_mod.fl.surface_h)
+            np.testing.assert_allclose(inv_fl.surface_h, mb_mod.spinup_heights)
 
             target_year_annual = 2002
             # after making this call all mbs from ys to 2002 were calculated and
@@ -1420,6 +1427,19 @@ class TestMassBalanceModels:
             ice_mb_annual[setting] = mb_mod.get_annual_mb(
                 heights=h, year=target_year_annual,
                 climatic_mb_or_ice_mb='ice_mb')
+
+            # test elevation feedback of mb_buckets heights for get_annual_mb
+            # need a fresh mb model, because of 'buckets-memory'
+            mb_mod_elev = get_fresh_mb_mod(
+                settings_filesuffix, mb_model_class, input_filesuffix, clim_res,
+                aging)
+            smb_annual_mb_elev = mb_mod_elev.get_annual_mb(
+                heights=h, year=target_year_annual,
+                include_mb_model_heights=True)
+            # including extra height of buckets gives the same (bucket_height=0)
+            # or a more positive (less negative) smb value
+            assert np.all(smb_annual_mb_elev - smb_annual[setting] >= 0.)
+            assert np.any(smb_annual_mb_elev - smb_annual[setting] > 0.)
 
             if clim_res in ['monthly', 'daily']:
                 target_year_month = target_year_annual + 1
@@ -1434,6 +1454,16 @@ class TestMassBalanceModels:
                 assert mb_mod.mb_buckets_year == date_to_floatyear(
                     y=target_year_month, m=9)
 
+                # test elevation feedback of mb_buckets heights for get_monthly_mb
+                smb_monthly_4_mb_elev = mb_mod_elev.get_monthly_mb(
+                    heights=h, year=date_to_floatyear(y=target_year_month, m=4),
+                    include_mb_model_heights=True)
+                # including extra height of buckets gives the same (bucket_height=0)
+                # or a more positive (less negative) smb value;
+                # -1e-20 floating point precision
+                assert np.all(smb_monthly_4_mb_elev - smb_monthly_4[setting] >= -1e-20)
+                assert np.any(smb_monthly_4_mb_elev - smb_monthly_4[setting] > 0)
+
             if clim_res in ['daily']:
                 target_year_day = target_year_month
                 smb_daily_3_9[setting] = mb_mod.get_daily_mb(
@@ -1446,6 +1476,16 @@ class TestMassBalanceModels:
                     year=date_to_floatyear(y=target_year_day, m=9, d=5))
                 assert mb_mod.mb_buckets_year == date_to_floatyear(
                     y=target_year_day, m=9, d=6)
+
+                # test elevation feedback of mb_buckets heights for get_daily_mb
+                smb_daily_3_9_mb_elev = mb_mod_elev.get_daily_mb(
+                    heights=h,
+                    year=date_to_floatyear(y=target_year_day, m=9, d=3),
+                    include_mb_model_heights=True)
+                # including extra height of buckets gives the same (bucket_height=0)
+                # or a more positive (less negative) smb value
+                assert np.all(smb_daily_3_9_mb_elev - smb_daily_3_9[setting] >= -1e-20)
+                assert np.any(smb_daily_3_9_mb_elev - smb_daily_3_9[setting] > 0)
 
             mb_buckets = mb_mod.mb_buckets_stored
 
@@ -1725,6 +1765,253 @@ class TestMassBalanceModels:
         mb_mod.prcp_fac = 1
         np.testing.assert_allclose(mb_mod.mb_buckets, mb_buckets_2006)
 
+    @pytest.mark.slow
+    def test_sfc_type_save_load(self, hef_gdir):
+        """Test SfcTypeTIModel.save_to_file and load_from_file."""
+
+        gdir = hef_gdir
+        init_present_time_glacier(gdir)
+        h = gdir.read_pickle('inversion_flowlines')[-1].surface_h
+
+        # Helper: verify that two model instances have identical state
+        def assert_models_equal(m1, m2, check_snowline=False):
+            np.testing.assert_allclose(m1.mb_buckets_np, m2.mb_buckets_np)
+            assert m1.mb_buckets_year == m2.mb_buckets_year
+            assert m1._current_index == m2._current_index
+            assert m1._year_to_index == m2._year_to_index
+            np.testing.assert_allclose(
+                m1._climatic_mb[:m1._current_index],
+                m2._climatic_mb[:m2._current_index])
+            np.testing.assert_allclose(
+                m1._ice_mb[:m1._current_index],
+                m2._ice_mb[:m2._current_index])
+            np.testing.assert_allclose(
+                m1._mb_heights[:m1._current_index],
+                m2._mb_heights[:m2._current_index])
+            assert m1.buckets == m2.buckets
+            np.testing.assert_allclose(
+                list(m1.melt_f_buckets.values()),
+                list(m2.melt_f_buckets.values()))
+            np.testing.assert_allclose(
+                list(m1.density_buckets.values()),
+                list(m2.density_buckets.values()))
+            np.testing.assert_allclose(m1.spinup_heights, m2.spinup_heights)
+            np.testing.assert_allclose(
+                m1.buckets_grid_point_label, m2.buckets_grid_point_label)
+            if check_snowline:
+                np.testing.assert_allclose(m1.snowline, m2.snowline)
+                np.testing.assert_allclose(m1.snowline_year, m2.snowline_year)
+
+        # Test 1: annual climate / annual aging
+
+        # 1a: save before any computation (current_index == 0)
+        mb_mod = massbalance.SfcTypeTIModel(
+            gdir, mb_model_class=massbalance.MonthlyTIModel,
+            climate_resolution='annual', aging_frequency='annual',
+            ys=1990, check_calib_params=False)
+        mb_mod.save_to_file(filesuffix='_test_annual')
+        mb_loaded = massbalance.SfcTypeTIModel.load_from_file(
+            gdir, filesuffix='_test_annual')
+        assert_models_equal(mb_mod, mb_loaded)
+
+        # 1b: continue on both models; results must match exactly
+        mb1 = mb_mod.get_annual_mb(h, year=1996)
+        mb2 = mb_loaded.get_annual_mb(h, year=1996)
+        np.testing.assert_allclose(mb1, mb2)
+        assert_models_equal(mb_mod, mb_loaded)
+
+        # 1c: save after computation and reload
+        mb_mod.save_to_file(filesuffix='_test_annual_mid')
+        mb_loaded_mid = massbalance.SfcTypeTIModel.load_from_file(
+            gdir, filesuffix='_test_annual_mid')
+        assert_models_equal(mb_mod, mb_loaded_mid)
+
+        # 1d: continue from loaded mid-state; must give identical output
+        for yr in range(1997, 2000):
+            mb_orig = mb_mod.get_annual_mb(h, year=yr)
+            mb_file = mb_loaded_mid.get_annual_mb(h, year=yr)
+            np.testing.assert_allclose(mb_orig, mb_file)
+
+        # 1e: custom fl behaves identically (spinup_heights and
+        #     buckets_grid_point_label are restored, no fl object needed)
+        custom_fl = gdir.read_pickle('inversion_flowlines')[-1]
+        mb_mod_fl = massbalance.SfcTypeTIModel(
+            gdir, mb_model_class=massbalance.MonthlyTIModel,
+            fl=custom_fl,
+            climate_resolution='annual', aging_frequency='annual',
+            ys=1990, check_calib_params=False)
+        mb_mod_fl.get_annual_mb(h, year=1996)
+        mb_mod_fl.save_to_file(filesuffix='_test_custom_fl')
+        mb_loaded_fl = massbalance.SfcTypeTIModel.load_from_file(
+            gdir, filesuffix='_test_custom_fl')
+        assert_models_equal(mb_mod_fl, mb_loaded_fl)
+
+        for yr in range(1997, 2000):
+            mb_orig = mb_mod_fl.get_annual_mb(h, year=yr)
+            mb_file = mb_loaded_fl.get_annual_mb(h, year=yr)
+            np.testing.assert_allclose(mb_orig, mb_file)
+
+        # Test 2: monthly climate / monthly aging
+        mb_mod_m = massbalance.SfcTypeTIModel(
+            gdir, mb_model_class=massbalance.MonthlyTIModel,
+            climate_resolution='monthly', aging_frequency='monthly',
+            ys=1990, check_calib_params=False,
+            use_previous_mbs=True)
+
+        # advance a couple of years via annual mb (triggers all monthly steps)
+        mb_mod_m.get_annual_mb(h, year=1993)
+
+        mb_mod_m.save_to_file(filesuffix='_test_monthly')
+        mb_loaded_m = massbalance.SfcTypeTIModel.load_from_file(
+            gdir, filesuffix='_test_monthly')
+        assert_models_equal(mb_mod_m, mb_loaded_m)
+
+        # previously computed year can be retrieved from both after load
+        mb_prev_orig = mb_mod_m.get_annual_mb(h, year=1992)
+        mb_prev_loaded = mb_loaded_m.get_annual_mb(h, year=1992)
+        np.testing.assert_allclose(mb_prev_orig, mb_prev_loaded)
+
+        # continue forward
+        for yr in range(1994, 2000):
+            mb_orig = mb_mod_m.get_annual_mb(h, year=yr)
+            mb_file = mb_loaded_m.get_annual_mb(h, year=yr)
+            np.testing.assert_allclose(mb_orig, mb_file)
+        assert_models_equal(mb_mod_m, mb_loaded_m)
+
+        # Test 3: store_snowline
+        mb_mod_sl = massbalance.SfcTypeTIModel(
+            gdir, mb_model_class=massbalance.MonthlyTIModel,
+            climate_resolution='monthly', aging_frequency='annual',
+            ys=1990, check_calib_params=False,
+            store_snowline=True, store_snowline_start_month='Oct')
+        mb_mod_sl.get_annual_mb(h, year=1993)
+        assert len(mb_mod_sl.snowline) > 0  # sanity check
+
+        mb_mod_sl.save_to_file(filesuffix='_test_snowline')
+        mb_loaded_sl = massbalance.SfcTypeTIModel.load_from_file(
+            gdir, filesuffix='_test_snowline')
+        assert_models_equal(mb_mod_sl, mb_loaded_sl, check_snowline=True)
+
+        # snowline continues to accumulate correctly after load
+        mb_mod_sl.get_annual_mb(h, year=2000)
+        mb_loaded_sl.get_annual_mb(h, year=2000)
+        np.testing.assert_allclose(mb_mod_sl.snowline, mb_loaded_sl.snowline)
+        np.testing.assert_allclose(
+            mb_mod_sl.snowline_year, mb_loaded_sl.snowline_year)
+
+        # Test 4: filesuffix parameter is respected
+        mb_mod.save_to_file(filesuffix='_suffix_check')
+        mb_loaded_suffix = massbalance.SfcTypeTIModel.load_from_file(
+            gdir, filesuffix='_suffix_check')
+        assert_models_equal(mb_mod, mb_loaded_suffix)
+
+        # Test 5: scenario branch: new climate_input_filesuffix resets MB
+        #         history but preserves bucket state
+        mb_mod_branch = massbalance.SfcTypeTIModel(
+            gdir, mb_model_class=massbalance.MonthlyTIModel,
+            climate_resolution='annual', aging_frequency='annual',
+            ys=1990, check_calib_params=False)
+        mb_mod_branch.get_annual_mb(h, year=1995)
+        mb_mod_branch.save_to_file(filesuffix='_test_branch')
+
+        # Passing climate_input_filesuffix (even if identical, default is None)
+        # triggers the scenario-branch path: bucket state is kept, MB history is
+        # reset.
+        mb_loaded_branch = massbalance.SfcTypeTIModel.load_from_file(
+            gdir, filesuffix='_test_branch',
+            climate_input_filesuffix='')
+
+        # bucket state must be preserved exactly
+        np.testing.assert_allclose(
+            mb_mod_branch.mb_buckets_np, mb_loaded_branch.mb_buckets_np)
+        assert (mb_loaded_branch.mb_buckets_year ==
+                mb_mod_branch.mb_buckets_year)
+        # scenario branch: MB output history is reset
+        assert mb_loaded_branch._current_index == 0
+        assert mb_loaded_branch._year_to_index == {}
+        # ys is set to int(mb_buckets_year) so arrays are sized for the new period
+        assert mb_loaded_branch.ys == int(mb_mod_branch.mb_buckets_year)
+
+        # Test 6: MultipleFlowlineMassBalance save_to_file / load_from_file
+        mb_multi = massbalance.MultipleFlowlineMassBalance(
+            gdir,
+            mb_model_class=partial(massbalance.SfcTypeTIModel,
+                                   mb_model_class=massbalance.MonthlyTIModel,
+                                   ys=1990,
+                                   ),
+            check_calib_params=False)
+        # advance state so there is something non-trivial to save
+        fls = gdir.read_pickle('model_flowlines')
+        for i, fl in enumerate(fls):
+            mb_multi.get_annual_mb(fl.surface_h, year=1997, fl_id=i)
+
+        mb_multi.save_to_file(filesuffix='_test_multi')
+
+        # load without new climate
+        mb_multi_loaded = massbalance.MultipleFlowlineMassBalance.load_from_file(
+            gdir, filesuffix='_test_multi')
+        assert len(mb_multi_loaded.flowline_mb_models) == len(
+            mb_multi.flowline_mb_models)
+        for i, fl in enumerate(fls):
+            assert_models_equal(mb_multi.flowline_mb_models[i],
+                                mb_multi_loaded.flowline_mb_models[i])
+
+        # load with new climate, scenario branch (bucket state kept, history reset)
+        mb_multi_branch = massbalance.MultipleFlowlineMassBalance.load_from_file(
+            gdir, filesuffix='_test_multi', climate_input_filesuffix='')
+        for i, fl in enumerate(fls):
+            np.testing.assert_allclose(
+                mb_multi.flowline_mb_models[i].mb_buckets_np,
+                mb_multi_branch.flowline_mb_models[i].mb_buckets_np)
+            assert mb_multi_branch.flowline_mb_models[i]._current_index == 0
+
+        # Test 7: test with dynamic run and multiple flowlines
+        continues_run = tasks.run_from_climate_data(
+            gdir,
+            mb_model_class=partial(
+                massbalance.SfcTypeTIModel,
+                mb_model_class=massbalance.MonthlyTIModel,
+                ys=1990,),
+            ys=1990, ye=2000,
+            mb_elev_feedback='monthly',
+            save_mb_diagnostics_filesuffix='continues_run',
+        )
+
+        part1_run = tasks.run_from_climate_data(
+            gdir,
+            mb_model_class=partial(
+                massbalance.SfcTypeTIModel,
+                mb_model_class=massbalance.MonthlyTIModel,
+                ys=1990, ),
+            ys=1990, ye=1995,
+            mb_elev_feedback='monthly',
+            save_mb_diagnostics_filesuffix='part1_run',
+        )
+        # pass part1_run.fls for glacier geometry
+        part2_run = tasks.run_from_climate_data(
+            gdir,
+            mb_diagnostics_filesuffix='part1_run',
+            ys=1995, ye=2000,
+            init_model_fls=part1_run.fls,
+            mb_elev_feedback='monthly',
+            save_mb_diagnostics_filesuffix='part2_run',
+        )
+
+        np.testing.assert_allclose(continues_run.volume_m3, part2_run.volume_m3,
+                                   rtol=1e-5)
+
+        continues_mb = massbalance.MultipleFlowlineMassBalance.load_from_file(
+            gdir, filesuffix='continues_run')
+        part2_mb = massbalance.MultipleFlowlineMassBalance.load_from_file(
+            gdir, filesuffix='part2_run')
+        # buckets are not too different
+        for i, fl in enumerate(fls):
+            np.testing.assert_allclose(
+                continues_mb.flowline_mb_models[i].mb_buckets_np,
+                part2_mb.flowline_mb_models[i].mb_buckets_np,
+                rtol=2e-2)
+
+    @pytest.mark.slow
     def test_sfc_type_mb_model_calib_dynamics(self, hef_gdir):
 
         # sfc tracking only works with a single flowline
@@ -1757,7 +2044,7 @@ class TestMassBalanceModels:
             calibrate_param3='temp_bias',
             mb_model_class=massbalance.DailyTIModel)
 
-        df, mb_mod_claib = massbalance.mb_calibration_from_scalar_mb(
+        df, mb_mod_calib = massbalance.mb_calibration_from_scalar_mb(
             gdir, settings_filesuffix='_daily_sfc',
             observations_filesuffix='_daily_sfc',
             overwrite_gdir=True,
@@ -1792,13 +2079,14 @@ class TestMassBalanceModels:
             ys=mbdf.index[0])
         # by calling one of the last years, all previous values need to be
         # computed as well
-        mb_mod_new.get_specific_mb(fls=[mb_mod_new.fl], year=2019)
-        assert mb_mod_claib.mb_buckets_year == mb_mod_new.mb_buckets_year
-        np.testing.assert_allclose(mb_mod_claib.mb_buckets_np,
+        mb_mod_new.get_specific_mb(
+            fls=gdir.read_pickle('inversion_flowlines'), year=2019)
+        assert mb_mod_calib.mb_buckets_year == mb_mod_new.mb_buckets_year
+        np.testing.assert_allclose(mb_mod_calib.mb_buckets_np,
                                    mb_mod_new.mb_buckets_np)
-        np.testing.assert_allclose(mb_mod_claib.climatic_mb.values,
+        np.testing.assert_allclose(mb_mod_calib.climatic_mb.values,
                                    mb_mod_new.climatic_mb.values)
-        np.testing.assert_allclose(mb_mod_claib.ice_mb.values,
+        np.testing.assert_allclose(mb_mod_calib.ice_mb.values,
                                    mb_mod_new.ice_mb.values)
 
         # now conduct two dynamic runs and compare
@@ -1806,8 +2094,10 @@ class TestMassBalanceModels:
                                     mb_model_class=massbalance.DailyTIModel,
                                     climate_input_filesuffix='_daily',
                                     ys=1980, ye=2020,
+                                    mb_elev_feedback='monthly',
                                     output_filesuffix='_daily')
         ds_daily = utils.compile_run_output(gdir, input_filesuffix='_daily')
+
         dyn_model = tasks.run_from_climate_data(
             gdir, settings_filesuffix='_daily_sfc',
             mb_model_class=partial(
@@ -1816,8 +2106,16 @@ class TestMassBalanceModels:
                 ys=mbdf.index[0]),
             climate_input_filesuffix='_daily',
             ys=1980, ye=2020,
+            store_model_geometry=True, store_fl_diagnostics=True,
+            store_monthly_step=True, mb_elev_feedback='monthly',
             output_filesuffix='_daily_sfc')
-        ds_daily_sfc = utils.compile_run_output(gdir, input_filesuffix='_daily_sfc')
+        ds_daily_sfc = utils.compile_run_output(gdir,
+                                                input_filesuffix='_daily_sfc')
+        with xr.open_dataset(
+                gdir.get_filepath('fl_diagnostics',
+                                  filesuffix='_daily_sfc'),
+                group=f'fl_0') as ds_fl_sfc:
+            ds_fl_sfc = ds_fl_sfc.load()
 
         if do_plot:
             ds_daily.volume.plot(label='DailyTIModel')
@@ -1829,7 +2127,204 @@ class TestMassBalanceModels:
         # needed to melt the input mass
         assert ds_daily.volume[-1] < ds_daily_sfc.volume[-1]
 
+        # test for include mb_model_heights in dynamics
+        dyn_model_elev = tasks.run_from_climate_data(
+            gdir, settings_filesuffix='_daily_sfc',
+            mb_model_class=partial(
+                massbalance.SfcTypeTIModel,
+                mb_model_class=massbalance.DailyTIModel,
+                ys=mbdf.index[0]),
+            climate_input_filesuffix='_daily',
+            ys=1980, ye=2020,
+            mb_elev_feedback='monthly',
+            output_filesuffix='_daily_sfc_mb_elev',
+            include_mb_model_heights=True,
+        )
+        ds_daily_sfc_elev = utils.compile_run_output(
+            gdir, input_filesuffix='_daily_sfc_mb_elev')
+        # test that including elevation feedback from mb_bucktes leads to larger
+        # overall volume
+        assert np.all(ds_daily_sfc_elev.volume - ds_daily_sfc.volume >= 0.)
+        assert np.any(ds_daily_sfc_elev.volume - ds_daily_sfc.volume > 0.)
+
+        # test firn outputs
+        dyn_model_firn = tasks.run_from_climate_data(
+            gdir, settings_filesuffix='_daily_sfc',
+            mb_model_class=partial(
+                massbalance.SfcTypeTIModel,
+                mb_model_class=massbalance.DailyTIModel,
+                ys=mbdf.index[0]),
+            climate_input_filesuffix='_daily',
+            ys=1980, ye=2020,
+            store_model_geometry=True, store_fl_diagnostics=True,
+            store_monthly_step=True, mb_elev_feedback='monthly',
+            output_filesuffix='_daily_sfc_firn_output',
+            include_firn_outputs=True,
+        )
+        ds_daily_sfc_firn = utils.compile_run_output(
+            gdir, input_filesuffix='_daily_sfc_firn_output')
+        with xr.open_dataset(
+                gdir.get_filepath('fl_diagnostics',
+                                  filesuffix='_daily_sfc_firn_output'),
+                group=f'fl_0') as ds_fl_sfc_firn:
+            ds_fl_sfc_firn = ds_fl_sfc_firn.load()
+
+        # totals should be equal of ice + firn
+        # glacier totals
+        np.testing.assert_allclose(
+            ds_daily_sfc_firn.mass_ice_kg + ds_daily_sfc_firn.mass_firn_kg,
+            ds_daily_sfc_firn.mass_kg)
+        np.testing.assert_allclose(
+            ds_daily_sfc_firn.volume_ice + ds_daily_sfc_firn.volume_firn,
+            ds_daily_sfc_firn.volume)
+        # fl_diagnostics
+        np.testing.assert_allclose(
+            ds_fl_sfc_firn.mass_ice_kg + ds_fl_sfc_firn.mass_firn_kg,
+            ds_fl_sfc_firn.mass_kg)
+        np.testing.assert_allclose(
+            ds_fl_sfc_firn.volume_ice_m3 + ds_fl_sfc_firn.volume_firn_m3,
+            ds_fl_sfc_firn.volume_m3)
+        np.testing.assert_allclose(
+            ds_fl_sfc_firn.thickness_ice_m + ds_fl_sfc_firn.thickness_firn_m,
+            ds_fl_sfc_firn.thickness_m)
+
+        # check firn density always larger then fresh snow
+        snow_density = dyn_model_firn.mb_model.flowline_mb_models[0].snow_density
+        # glacier totals
+        assert np.all(
+            ds_daily_sfc_firn.mass_firn_kg / ds_daily_sfc_firn.volume_firn >=
+            snow_density)
+        # fl_diagnostics
+        fl_firn_density = ds_fl_sfc_firn.mass_firn_kg / ds_fl_sfc_firn.volume_firn_m3
+        assert np.all(
+            # deal with nan values
+            np.where(np.isnan(fl_firn_density), snow_density, fl_firn_density) >=
+            snow_density)
+
+        # check max firn density inside of a plausible range, it can be larger
+        # than ice density due to firn densification over time
+        max_firn_density = 2000
+        assert np.max(ds_daily_sfc_firn.mass_firn_kg /
+                      ds_daily_sfc_firn.volume_firn) < max_firn_density
+        assert np.max(np.where(np.isfinite(fl_firn_density),
+                               fl_firn_density, 0)) < max_firn_density
+
+        # check ice density always the same in dynamic model
+        # glacier totals
+        np.testing.assert_allclose(
+            ds_daily_sfc_firn.mass_ice_kg / ds_daily_sfc_firn.volume_ice,
+            dyn_model_firn.ice_density)
+        # fl_diagnostics
+        fl_ice_density = ds_fl_sfc_firn.mass_ice_kg / ds_fl_sfc_firn.volume_ice_m3
+        np.testing.assert_allclose(
+            # deal with nan values
+            np.where(np.isnan(fl_ice_density),
+                     dyn_model_firn.ice_density, fl_ice_density),
+            dyn_model_firn.ice_density)
+
+        # current implementation: if firn output is not included set the total
+        # to the ice values
+        np.testing.assert_allclose(ds_daily_sfc.volume,
+                                   ds_daily_sfc_firn.volume_ice)
+        np.testing.assert_allclose(ds_daily_sfc.mass_kg,
+                                   ds_daily_sfc_firn.mass_ice_kg)
+
+        # test save_mb_diagnostics_filesuffix and mb_diagnostics_filesuffix
+
+        # (a) Run historical period to 2010, saving MB state at the end
+        dyn_model_hist = tasks.run_from_climate_data(
+            gdir, settings_filesuffix='_daily_sfc',
+            mb_model_class=partial(
+                massbalance.SfcTypeTIModel,
+                mb_model_class=massbalance.DailyTIModel,
+                ys=mbdf.index[0]),
+            climate_input_filesuffix='_daily',
+            ys=1980, ye=2010,
+            store_model_geometry=True,
+            mb_elev_feedback='monthly',
+            output_filesuffix='_daily_sfc_hist',
+            save_mb_diagnostics_filesuffix='_hist_checkpoint')
+
+        # saved file must exist
+        assert gdir.has_file(
+            'mb_diagnostics', filesuffix='_hist_checkpoint')
+
+        # (b) Load the saved MultipleFlowlineMassBalance and verify bucket state
+        mb_loaded = massbalance.MultipleFlowlineMassBalance.load_from_file(
+            gdir, filesuffix='_hist_checkpoint')
+        hist_mb_mod = dyn_model_hist.mb_model.flowline_mb_models[0]
+        loaded_mb_mod = mb_loaded.flowline_mb_models[0]
+        np.testing.assert_allclose(hist_mb_mod.mb_buckets_np,
+                                   loaded_mb_mod.mb_buckets_np)
+        assert hist_mb_mod.mb_buckets_year == loaded_mb_mod.mb_buckets_year
+        assert hist_mb_mod._current_index == loaded_mb_mod._current_index
+
+        # (c) Projection from the saved state using mb_diagnostics_filesuffix.
+        # We pass climate_input_filesuffix='_daily' (same file) to trigger the
+        # scenario-branch path: bucket state is kept, MB history is reset, and
+        # the output arrays are sized for 2010 to 2020.
+        dyn_model_proj = tasks.run_from_climate_data(
+            gdir, settings_filesuffix='_daily_sfc',
+            climate_input_filesuffix='_daily',
+            ys=2010, ye=2020,
+            mb_elev_feedback='monthly',
+            init_model_filesuffix='_daily_sfc_hist',
+            output_filesuffix='_daily_sfc_proj',
+            mb_diagnostics_filesuffix='_hist_checkpoint')
+
+        # projection MB model is in scenario-branch state: history reset
+        proj_mb_mod = dyn_model_proj.mb_model.flowline_mb_models[0]
+        assert proj_mb_mod.ys == int(hist_mb_mod.mb_buckets_year)
+        # historical mb should cover the entire period provided (ys to ye)
+        assert hist_mb_mod._climatic_mb.shape[0] == (2020 - mbdf.index[0]) * 12
+        # the projection only should start at ys = 2010
+        assert proj_mb_mod._climatic_mb.shape[0] == (2020 - 2010) * 12
+
+        # (d) Running the same projection twice from the same saved state must
+        # give identical volume output
+        dyn_model_proj2 = tasks.run_from_climate_data(
+            gdir, settings_filesuffix='_daily_sfc',
+            climate_input_filesuffix='_daily',
+            ys=2010, ye=2020,
+            mb_elev_feedback='monthly',
+            init_model_filesuffix='_daily_sfc_hist',
+            output_filesuffix='_daily_sfc_proj2',
+            mb_diagnostics_filesuffix='_hist_checkpoint')
+
+        ds_proj = utils.compile_run_output(
+            gdir, input_filesuffix='_daily_sfc_proj')
+        ds_proj2 = utils.compile_run_output(
+            gdir, input_filesuffix='_daily_sfc_proj2')
+        np.testing.assert_allclose(ds_proj.volume.values,
+                                   ds_proj2.volume.values)
+
+        # we should get the same when doing a continues run
+        dyn_model_hist = tasks.run_from_climate_data(
+            gdir, settings_filesuffix='_daily_sfc',
+            mb_model_class=partial(
+                massbalance.SfcTypeTIModel,
+                mb_model_class=massbalance.DailyTIModel,
+                ys=mbdf.index[0]),
+            climate_input_filesuffix='_daily',
+            ys=1980, ye=2020,
+            store_model_geometry=True,
+            mb_elev_feedback='monthly',
+            output_filesuffix='_daily_sfc_continues_run',
+            save_mb_diagnostics_filesuffix='_hist_continues_run')
+
+        # a continues run should end up at the same volume at the end
+        np.testing.assert_allclose(dyn_model_hist.volume_m3,
+                                   ds_proj.volume.values[-1])
+
+        # also snow buckets should be the same at the end
+        continues_mb = massbalance.MultipleFlowlineMassBalance.load_from_file(
+            gdir, filesuffix='_hist_continues_run')
+        np.testing.assert_allclose(
+            continues_mb.flowline_mb_models[0].mb_buckets_np,
+            proj_mb_mod.mb_buckets_np, )
+
         # test run_with_hydro, just testing if it runs without errors
+        # TODO: run_with_hydro needs to be adapted for SfcTypeTIModel
         gdir.settings_filesuffix = '_daily'
         gdir.settings['store_model_geometry'] = True
         tasks.run_with_hydro(
@@ -2913,7 +3408,7 @@ class TestIO():
 
         # Check attrs
         assert ds.attrs['mb_model_class'] == 'LinearMassBalance'
-        assert ds.attrs['mb_model_rho'] == cfg.PARAMS['ice_density']
+        assert ds.attrs['mb_model_ice_density'] == cfg.PARAMS['ice_density']
         assert ds_diag.attrs['mb_model_class'] == 'LinearMassBalance'
         assert ds_diag.attrs['mb_model_ela_h'] == 2600
 
@@ -2958,7 +3453,7 @@ class TestIO():
                              model.get_mb(surface_h_previous_timestep,
                                           years[i-1],
                                           fl_id=0) *
-                             SEC_IN_MONTH)  # converted to m yr-1
+                             model._get_sec_in_month(years[i-1]))  # converted to m yr-1
                 )
                 surface_h_previous_timestep = model.fls[0].surface_h
 
@@ -3332,6 +3827,176 @@ def inversion_gdir(class_case_dir):
     gdir = GlacierDirectory(entity, base_dir=class_case_dir, reset=True)
     define_glacier_region(gdir)
     return gdir
+
+
+class TestLeapYears:
+    """Tests for leap-year-aware time conversion in FlowlineModel."""
+
+    def _make_model(self, y0, use_leap_years):
+        cfg.initialize()
+        fls = dummy_constant_bed()
+        mb = LinearMassBalance(2600., use_leap_years=use_leap_years)
+        glen_a = 2.4e-24
+        return FluxBasedModel(fls, mb_model=mb, y0=float(y0), glen_a=glen_a)
+
+    def test_yr_to_seconds_known_values(self):
+        """_yr_to_seconds must accumulate 366 days for leap years, 365 for others."""
+        model = self._make_model(1980, use_leap_years=True)
+        SEC = 86400
+        # 1980 is a leap year (366 d)
+        assert model._yr_to_seconds(1981.0) == 366 * SEC
+        # 1981 is not (365 d)
+        assert model._yr_to_seconds(1982.0) == (366 + 365) * SEC
+        # 1980–1984 spans two leap years (1980, 1984) and three normal ones
+        assert model._yr_to_seconds(1985.0) == (366 + 365 + 365 + 365 + 366) * SEC
+        # Fractional year: 0.5 through a 365-day year
+        assert model._yr_to_seconds(1981.5) == (366 + 0.5 * 365) * SEC
+
+    def test_round_trip(self):
+        """_seconds_to_yr must be the exact inverse of _yr_to_seconds."""
+        model = self._make_model(1980, use_leap_years=True)
+        # float_years_timeseries covers monthly steps over 5 years (1980–1984),
+        # including two leap years (1980, 1984) and the Feb-29 transitions.
+        for yr in utils.float_years_timeseries(1980., 1985.):
+            t = model._yr_to_seconds(yr)
+            np.testing.assert_allclose(model._seconds_to_yr(t), yr, atol=1e-9,
+                                       err_msg=f'Round-trip failed for yr={yr}')
+
+    def test_yr_property_after_run(self):
+        """After run_until(y1), self.yr must equal y1 and self.t the correct seconds."""
+        model = self._make_model(1980, use_leap_years=True)
+        model.run_until(1985.)
+        np.testing.assert_allclose(model.yr, 1985., atol=1e-9)
+        expected_t = (366 + 365 + 365 + 365 + 366) * 86400  # 1980–1984
+        np.testing.assert_allclose(model.t, expected_t, rtol=1e-9)
+
+    def test_no_leap_unchanged(self):
+        """With use_leap_years=False the old SEC_IN_YEAR behaviour must be preserved."""
+        model = self._make_model(1980, use_leap_years=False)
+        model.run_until(1985.)
+        np.testing.assert_allclose(model.t, 5 * SEC_IN_YEAR)
+        np.testing.assert_allclose(model.yr, 1985.)
+
+    def test_lookup_extension(self):
+        """_yr_to_seconds/_seconds_to_yr must work beyond the initial 100-year window."""
+        model = self._make_model(1980, use_leap_years=True)
+        yr_far = 2090.75  # 110 years past y0, beyond default 100-year window
+        t = model._yr_to_seconds(yr_far)
+        np.testing.assert_allclose(model._seconds_to_yr(t), yr_far, atol=1e-9)
+
+    def test_run_until_monthly_steps(self):
+        """Monthly time steps through a leap year must land on exact targets."""
+        model = self._make_model(1980, use_leap_years=True)
+        monthly_ts = utils.float_years_timeseries(1980., 1981.)
+        for yr in monthly_ts:
+            model.run_until(yr)
+            np.testing.assert_allclose(model.yr, yr, atol=1e-9,
+                                       err_msg=f'Missed target month at yr={yr}')
+
+    def test_calendar_attr(self, tmp_path):
+        """Output datasets must carry the correct calendar string."""
+        model = self._make_model(1980, use_leap_years=True)
+        ds_diag, _ = model.run_until_and_store(1985., geom_path=None)
+        assert ds_diag.attrs['calendar'] == '365/366-day (Gregorian, leap years)'
+
+        model2 = self._make_model(1980, use_leap_years=False)
+        ds_diag2, _ = model2.run_until_and_store(1985., geom_path=None)
+        assert ds_diag2.attrs['calendar'] == '365-day (no leap)'
+
+    def test_leap_years_with_monthly_ti_model(self, hef_gdir):
+        """Comprehensive test of leap-year handling with MonthlyTIModel.
+
+        Covers:
+        - _get_sec_in_year / _get_sec_in_month delegation in FlowlineModel
+        - February climatic_mb differnce: cmb_leap - cmb_noleap = -melt_f * tmelt_pd / rho
+        - get_annual_mb normalisation by sec_in_year
+        - MultipleFlowlineMassBalance.sec_in_year / sec_in_month delegation
+        """
+        from oggm.core.massbalance import MonthlyTIModel, MultipleFlowlineMassBalance
+
+        feb_1980 = utils.date_to_floatyear(1980, 2)  # 1980 is a leap year
+        feb_1981 = utils.date_to_floatyear(1981, 2)  # 1981 is not
+
+        mb_leap = MonthlyTIModel(hef_gdir, use_leap_years=True)
+        mb_noleap = MonthlyTIModel(hef_gdir, use_leap_years=False)
+
+        # --- 1. _get_sec_in_year / _get_sec_in_month ---
+        fls = dummy_constant_bed()
+        model_leap = FluxBasedModel(fls, mb_model=mb_leap, y0=1980.)
+        model_noleap = FluxBasedModel(dummy_constant_bed(), mb_model=mb_noleap, y0=1980.)
+
+        assert model_leap._get_sec_in_year(feb_1980) == 366 * 86400  # 1980 is leap
+        assert model_noleap._get_sec_in_year(feb_1980) == 365 * 86400
+        assert model_leap._get_sec_in_year(feb_1981) == 365 * 86400  # 1981 not leap
+        assert model_noleap._get_sec_in_year(feb_1981) == 365 * 86400  # identical
+
+        assert model_leap._get_sec_in_month(feb_1980) == 29 * 86400  # leap February
+        assert model_noleap._get_sec_in_month(feb_1980) == 28 * 86400
+        assert model_leap._get_sec_in_month(feb_1981) == 28 * 86400  # non-leap February
+        assert model_noleap._get_sec_in_month(feb_1981) == 28 * 86400  # identical
+
+        # --- 2. February climatic_mb ---
+        # climatic_mb = get_monthly_mb(heights, year) * sec_in_month
+        # For February in a leap year (N=29 days) vs non-leap (N=28 days):
+        #   cmb_leap   = (prcpsol - melt_f * 29 * tmelt_pd) / rho
+        #   cmb_noleap = (prcpsol - melt_f * 28 * tmelt_pd) / rho
+        #   difference = -melt_f * tmelt_pd / rho  (zero if no February melt)
+        heights = fls[0].surface_h
+        cmb_leap = (mb_leap.get_monthly_mb(heights, year=feb_1980)
+                    * mb_leap.sec_in_month(feb_1980))
+        cmb_noleap = (mb_noleap.get_monthly_mb(heights, year=feb_1980)
+                      * mb_noleap.sec_in_month(feb_1980))
+
+        _, tmelt_feb_leap, _, _ = mb_leap.get_monthly_climate(heights, year=feb_1980)
+        tmelt_per_day = tmelt_feb_leap / 29  # tmelt_feb_leap was scaled by 29 days
+        expected_diff = -mb_leap.melt_f * tmelt_per_day / mb_leap.ice_density
+        # test for some magnitude of expected_diff
+        assert np.any(np.abs(expected_diff) > 1e-2)
+        np.testing.assert_allclose(cmb_leap - cmb_noleap, expected_diff, rtol=1e-6)
+
+        # For a non-leap February both models must give the same climatic_mb
+        cmb_leap_1981 = (mb_leap.get_monthly_mb(heights, year=feb_1981)
+                         * mb_leap.sec_in_month(feb_1981))
+        cmb_noleap_1981 = (mb_noleap.get_monthly_mb(heights, year=feb_1981)
+                           * mb_noleap.sec_in_month(feb_1981))
+        np.testing.assert_allclose(cmb_leap_1981, cmb_noleap_1981)
+
+        # --- 3. get_annual_mb: sec_in_year normalisation ---
+        # the same "expected_diff" as above
+        mb_a_leap = mb_leap.get_annual_mb(heights, year=1980.)
+        mb_a_noleap = mb_noleap.get_annual_mb(heights, year=1980.)
+        np.testing.assert_allclose(
+            mb_a_leap * 366 * 86400 - mb_a_noleap * 365 * 86400,
+            expected_diff,
+            atol=1e-14,
+        )
+        # For a non-leap year the two models give identical annual MB
+        np.testing.assert_allclose(
+            mb_leap.get_annual_mb(heights, year=1981.),
+            mb_noleap.get_annual_mb(heights, year=1981.),
+        )
+
+        # --- 4. MultipleFlowlineMassBalance.sec_in_year / sec_in_month ---
+        mb_multi_leap = MultipleFlowlineMassBalance(
+            hef_gdir, mb_model_class=MonthlyTIModel,
+            use_leap_years=True, use_inversion_flowlines=True)
+        mb_multi_noleap = MultipleFlowlineMassBalance(
+            hef_gdir, mb_model_class=MonthlyTIModel,
+            use_leap_years=False, use_inversion_flowlines=True)
+
+        assert mb_multi_leap.sec_in_year(feb_1980) == 366 * 86400
+        assert mb_multi_noleap.sec_in_year(feb_1980) == 365 * 86400
+        assert mb_multi_leap.sec_in_month(feb_1980) == 29 * 86400
+        assert mb_multi_noleap.sec_in_month(feb_1980) == 28 * 86400
+
+        # Delegation must match the first inner flowline model
+        inner = mb_multi_leap.flowline_mb_models[0]
+        assert mb_multi_leap.sec_in_year(feb_1980) == inner.sec_in_year(feb_1980)
+        assert mb_multi_leap.sec_in_month(feb_1980) == inner.sec_in_month(feb_1980)
+
+        # use_leap_years is synced from inner models
+        assert mb_multi_leap.use_leap_years is True
+        assert mb_multi_noleap.use_leap_years is False
 
 
 class TestIdealisedInversion():

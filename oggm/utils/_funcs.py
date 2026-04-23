@@ -66,6 +66,10 @@ _BASE_CUM_START = np.array([0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304,
                             334], dtype=np.int64)
 _BASE_CUM_END = np.array([31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334,
                           365], dtype=np.int64)
+_DAYS_IN_MONTH_NOLEAP = np.array([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
+                                  dtype=np.int64)
+_DAYS_IN_MONTH_LEAP = np.array([31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
+                                dtype=np.int64)
 
 
 def parse_rgi_meta(version=None):
@@ -806,6 +810,14 @@ def floatyear_to_date(yr, return_day=False):
     x = f * N.astype(np.float64)
     doy_minus1 = np.rint(x).astype(np.int64)
     doy_minus1 = np.clip(doy_minus1, 0, N - 1)
+
+    # Ensure the candidate date does not exceed yr. np.rint can round up, making
+    # y + doy_minus1/N > yr. When that happens, step back one day.
+    candidate_fy = y.astype(np.float64) + doy_minus1.astype(np.float64) / N.astype(np.float64)
+    too_far = candidate_fy > yr
+    doy_minus1 = np.where(too_far, doy_minus1 - 1, doy_minus1)
+    doy_minus1 = np.clip(doy_minus1, 0, N - 1)
+
     doy = doy_minus1 + 1
 
     adj = doy - (leap & (doy > 59)).astype(np.int64)  # collapse leap past Feb
@@ -994,90 +1006,100 @@ def hydrodate_to_calendardate_cftime(
     return dates
 
 
-def get_days_of_year(year: float, use_leap_years: bool = False) -> int:
+def get_days_of_year(year, use_leap_years: bool = False):
     """Get the number of days of a given year.
 
     Parameters
     ----------
-    year : float or int
-        Year in floating year convention.
+    year : float or array_like
+        Year(s) in floating year convention.
     use_leap_years : bool
         Define if leap years should be returned.
 
     Returns
     -------
-    int
-        The number of days of a given year.
+    int or np.ndarray
+        The number of days of the given year(s). Returns a scalar int when
+        ``year`` is scalar, and an ``np.ndarray`` of int64 when it is array_like.
     """
-    if use_leap_years:
-        # use floatyear_to_date to avoid floating point mistakes (e.g. 1999.9999999)
-        yr_int = floatyear_to_date(year)[0]
-        return 366 if calendar.isleap(yr_int) else 365
-    else:
-        return 365
+    scalar = np.ndim(year) == 0
+    if not use_leap_years:
+        return 365 if scalar else np.full(np.asarray(year).shape, 365, dtype=np.int64)
+    yr_int = floatyear_to_date(np.asarray(year, dtype=np.float64))[0]
+    result = np.where(_is_leap_year_vec(yr_int), 366, 365).astype(np.int64)
+    return int(result) if scalar else result
 
 
-def get_seconds_of_year(year: float = None, use_leap_years: bool = False) -> int:
+def get_seconds_of_year(year=None, use_leap_years: bool = False):
     """Get the number of seconds in a year.
 
     Parameters
     ----------
-    year : float or int
-        Year in floating year convention.
+    year : float or array_like
+        Year(s) in floating year convention.
     use_leap_years : bool
         Define if leap years should be returned.
 
     Returns
     -------
-    int
-        The number of seconds in a year.
+    int or np.ndarray
+        The number of seconds in the given year(s). Returns a scalar int when
+        ``year`` is scalar, and an ``np.ndarray`` of int64 when it is array_like.
     """
-    if use_leap_years:
-        return SEC_IN_DAY * get_days_of_year(year, use_leap_years=use_leap_years)
-    else:
-        return SEC_IN_YEAR
+    if not use_leap_years:
+        scalar = np.ndim(year) == 0
+        return SEC_IN_YEAR if scalar else np.full(np.asarray(year).shape,
+                                                   SEC_IN_YEAR, dtype=np.int64)
+    return SEC_IN_DAY * get_days_of_year(year, use_leap_years=True)
 
 
-def get_days_of_month(year: float = None, use_leap_years: bool = False) -> int:
+def get_days_of_month(year=None, use_leap_years: bool = False):
     """Get the number of days in a month.
 
     Parameters
     ----------
-    year : float or int
-        Year in floating year convention.
+    year : float or array_like
+        Year(s) in floating year convention (encodes both year and month).
     use_leap_years : bool
         Define if leap years should be returned.
 
     Returns
     -------
-    int
-        The number of days in the current month.
+    int or np.ndarray
+        The number of days in the month of the given year(s). Returns a scalar
+        int when ``year`` is scalar, and an ``np.ndarray`` of int64 when it is
+        array_like.
     """
-    yr, mth = floatyear_to_date(year)
+    scalar = np.ndim(year) == 0
+    yr_int, mth = floatyear_to_date(np.asarray(year, dtype=np.float64))
+    mth_idx = np.asarray(mth, dtype=np.int64) - 1  # 0-indexed
     if use_leap_years:
-        return calendar.monthrange(yr, mth)[1]
+        result = np.where(_is_leap_year_vec(yr_int),
+                          _DAYS_IN_MONTH_LEAP[mth_idx],
+                          _DAYS_IN_MONTH_NOLEAP[mth_idx]).astype(np.int64)
     else:
-        return {1: 31, 2: 28, 3: 31, 4: 30, 5: 31, 6: 30, 7: 31, 8: 31, 9: 30,
-                10: 31, 11: 30, 12: 31}[mth]
+        result = _DAYS_IN_MONTH_NOLEAP[mth_idx]
+    return int(result) if scalar else result
 
 
-def get_seconds_of_month(year: float = None, use_leap_years: bool = False) -> int:
-    """Get the number of seconds in a year.
+def get_seconds_of_month(year=None, use_leap_years: bool = False):
+    """Get the number of seconds in a month.
 
     Parameters
     ----------
-    year : float or int
-        Year in floating year convention.
+    year : float or array_like
+        Year(s) in floating year convention (encodes both year and month).
     use_leap_years : bool
         Define if leap years should be returned.
 
     Returns
     -------
-    int
-        The number of seconds in the current month.
+    int or np.ndarray
+        The number of seconds in the month of the given year(s). Returns a
+        scalar int when ``year`` is scalar, and an ``np.ndarray`` of int64
+        when it is array_like.
     """
-    return SEC_IN_DAY * get_days_of_month(year=year,
-                                          use_leap_years=use_leap_years)
+    return SEC_IN_DAY * get_days_of_month(year=year, use_leap_years=use_leap_years)
 
 
 def float_years_timeseries(y0, y1=None, ny=None, include_last_year=False,

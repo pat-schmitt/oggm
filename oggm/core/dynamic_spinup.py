@@ -1021,7 +1021,10 @@ def define_new_melt_f_in_gdir(gdir, new_melt_f):
     -------
 
     """
-    if 'melt_f' not in gdir.settings:
+    # this is for backwards-compatiblity, it would be cleaner to call
+    # if 'melt_f' not in gdir.settings (only possible when mb was calibrated
+    # using the new settings system)
+    if gdir.settings['melt_f'] is None:
         raise InvalidWorkflowError('No `melt_f` in gdir.settings. '
                                    'You first need to calibrate the whole '
                                    'MassBalanceModel before changing melt_f '
