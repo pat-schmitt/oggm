@@ -3853,7 +3853,7 @@ def mb_calibration_from_wgms_mb(gdir, settings_filesuffix='',
 
 
 @entity_task(log, writes=['mb_calib'])
-def mb_calibration_to_rmsd(gdir, *,
+def mb_calibration_to_rmsd(gdir, settings_filesuffix='',
                            ref_df=None,
                            write_to_gdir=True,
                            overwrite_gdir=False,
@@ -3921,32 +3921,32 @@ def mb_calibration_to_rmsd(gdir, *,
             'melt_f', 'temp_bias', 'prcp_fac'. Defaults to ('melt_f',)
     melt_f: float
         the default value to use as melt factor (or the starting value when
-        optimizing MB). Defaults to cfg.PARAMS['melt_f'].
+        optimizing MB). Defaults to gdir.settings['melt_f'].
     melt_f_min: float
         the minimum accepted value for the melt factor during optimisation.
-        Defaults to cfg.PARAMS['melt_f_min'].
+        Defaults to gdir.settings['melt_f_min'].
     melt_f_max: float
         the maximum accepted value for the melt factor during optimisation.
-        Defaults to cfg.PARAMS['melt_f_max'].
+        Defaults to gdir.settings['melt_f_max'].
     prcp_fac: float
         the default value to use as precipitation scaling factor
         (or the starting value when optimizing MB). Defaults to the method
         chosen in `params.cfg` (winter prcp or global factor).
     prcp_fac_min: float
         the minimum accepted value for the precipitation scaling factor during
-        optimisation. Defaults to cfg.PARAMS['prcp_fac_min'].
+        optimisation. Defaults to gdir.settings['prcp_fac_min'].
     prcp_fac_max: float
         the maximum accepted value for the precipitation scaling factor during
-        optimisation. Defaults to cfg.PARAMS['prcp_fac_max'].
+        optimisation. Defaults to gdir.settings['prcp_fac_max'].
     temp_bias: float
         the default value to use as temperature bias (or the starting value when
         optimizing MB). Defaults to 0.
     temp_bias_min: float
         the minimum accepted value for the temperature bias during optimisation.
-        Defaults to cfg.PARAMS['temp_bias_min'].
+        Defaults to gdir.settings['temp_bias_min'].
     temp_bias_max: float
         the maximum accepted value for the temperature bias during optimisation.
-        Defaults to cfg.PARAMS['temp_bias_max'].
+        Defaults to gdir.settings['temp_bias_max'].
     filesuffix: str
         add a filesuffix to mb_calib.json. This could be useful for sensitivity
         analyses with MB models, if they need to fetch other sets of params for
@@ -3955,17 +3955,17 @@ def mb_calibration_to_rmsd(gdir, *,
 
     # Param constraints
     if melt_f_min is None:
-        melt_f_min = cfg.PARAMS['melt_f_min']
+        melt_f_min = gdir.settings['melt_f_min']
     if melt_f_max is None:
-        melt_f_max = cfg.PARAMS['melt_f_max']
+        melt_f_max = gdir.settings['melt_f_max']
     if prcp_fac_min is None:
-        prcp_fac_min = cfg.PARAMS['prcp_fac_min']
+        prcp_fac_min = gdir.settings['prcp_fac_min']
     if prcp_fac_max is None:
-        prcp_fac_max = cfg.PARAMS['prcp_fac_max']
+        prcp_fac_max = gdir.settings['prcp_fac_max']
     if temp_bias_min is None:
-        temp_bias_min = cfg.PARAMS['temp_bias_min']
+        temp_bias_min = gdir.settings['temp_bias_min']
     if temp_bias_max is None:
-        temp_bias_max = cfg.PARAMS['temp_bias_max']
+        temp_bias_max = gdir.settings['temp_bias_max']
 
     if not use_2d_mb:
         fls = gdir.read_pickle('inversion_flowlines')
@@ -3992,19 +3992,20 @@ def mb_calibration_to_rmsd(gdir, *,
 
     # Ok, regardless on how we want to calibrate, we start with defaults
     if melt_f is None:
-        melt_f = cfg.PARAMS['melt_f']
+        melt_f = gdir.settings['melt_f']
 
     if prcp_fac is None:
-        if cfg.PARAMS['prcp_fac'] is None:
+        if gdir.settings['prcp_fac'] is None:
             prcp_fac = decide_winter_precip_factor(gdir)
         else:
-            prcp_fac = cfg.PARAMS['prcp_fac']
+            prcp_fac = gdir.settings['prcp_fac']
 
     if temp_bias is None:
         temp_bias = 0
 
     # Create the MB model we will calibrate
     mb_mod = mb_model_class(gdir,
+                            settings_filesuffix=settings_filesuffix,
                             melt_f=melt_f,
                             temp_bias=temp_bias,
                             prcp_fac=prcp_fac,
@@ -4032,7 +4033,8 @@ def mb_calibration_to_rmsd(gdir, *,
         elif param == 'temp_bias':
             bounds.append((temp_bias_min, temp_bias_max))
 
-    # Optimises all three mass balance parameters at the same time to minimize the RMSD between the simulated and reference MB timeseries
+    # Optimises all three mass balance parameters at the same time to minimize
+    # the RMSD between the simulated and reference MB timeseries
     def rmsd_cost_function(x, *model_attrs: tuple):
         for i, model_attr in enumerate(model_attrs):
             setattr(mb_mod, model_attr, x[i])
@@ -4068,7 +4070,7 @@ def mb_calibration_to_rmsd(gdir, *,
                            f'Try another technique.')
 
     # Store parameters
-    df = gdir.read_json('mb_calib', allow_empty=True)
+    df = {}
     df['rgi_id'] = gdir.rgi_id
     df['bias'] = 0
     df['melt_f'] = melt_f
@@ -4081,16 +4083,20 @@ def mb_calibration_to_rmsd(gdir, *,
 
     # Add the climate related params to the GlacierDir to make sure
     # other tools cannot fool around without re-calibration
-    df['mb_global_params'] = {k: cfg.PARAMS[k] for k in MB_GLOBAL_PARAMS}
+    df['mb_global_params'] = {k: gdir.settings[k] for k in MB_GLOBAL_PARAMS}
     df['baseline_climate_source'] = gdir.get_climate_info()['baseline_climate_source']
     # Write
     if write_to_gdir:
-        if gdir.has_file('mb_calib', filesuffix=filesuffix) and not overwrite_gdir:
-            raise InvalidWorkflowError('`mb_calib.json` already exists for '
-                                       'this repository. Set `overwrite_gdir` '
-                                       'to True if you want to overwrite '
-                                       'a previous calibration.')
-        gdir.write_json(df, 'mb_calib', filesuffix=filesuffix)
+        if any(key in gdir.get_stored_settings(filesuffix=settings_filesuffix)
+               for key in ['melt_f', 'prcp_fac', 'temp_bias']) and not overwrite_gdir:
+            raise InvalidWorkflowError('Their are already mass balance parameters '
+                                       'stored in the settings file. Set '
+                                       '`overwrite_gdir` to True if you want to '
+                                       'overwrite a previous calibration.')
+        for key in ['rgi_id', 'bias', 'melt_f', 'prcp_fac', 'temp_bias',
+                    'reference_mb', 'reference_period',
+                    'mb_global_params', 'baseline_climate_source']:
+            gdir.settings[key] = df[key]
     return df
 
 
