@@ -147,12 +147,29 @@ class TestGIS(unittest.TestCase):
 
         assert gdir.status == 'Glacier or ice cap'
 
+        # If we start from workdir there used to be a bug
+        # It should also work like this
+        cfg.PARAMS['use_rgi_area'] = False
+        gdir = oggm.GlacierDirectory('RGI50-11.00897', base_dir=self.testdir)
+        # Close but not same
+        assert gdir.rgi_area_km2 != prev_area
+        assert gdir.cenlon != prev_lon
+        assert gdir.cenlat != prev_lat
+        np.testing.assert_allclose(gdir.rgi_area_km2, prev_area, atol=0.01)
+        np.testing.assert_allclose(gdir.cenlon, prev_lon, atol=1e-2)
+        np.testing.assert_allclose(gdir.cenlat, prev_lat, atol=1e-2)
+
     def test_reproject(self):
 
         hef_file = get_demo_file('Hintereisferner_RGI5.shp')
         entity = gpd.read_file(hef_file).iloc[0]
         gdir = oggm.GlacierDirectory(entity, base_dir=self.testdir)
         gis.define_glacier_region(gdir)
+
+        with rasterio.open(gdir.get_filepath('dem'), 'r',
+                           driver='GTiff') as ds:
+            assert not ds.profile.get('tiled', False)
+            assert ds.profile.get('compress', '').lower() == 'deflate'
 
         fn = 'resampled_dem'
         cfg.BASENAMES[fn] = ('res_dem.tif', 'for testing')
@@ -365,7 +382,7 @@ class TestGIS(unittest.TestCase):
         gis.rasterio_glacier_exterior_mask(gdir)
         gis.compute_hypsometry_attributes(gdir)
 
-        dfh = pd.read_csv(gdir.get_filepath('hypsometry'))
+        dfh = pd.read_csv(gdir.get_filepath('hypsometry'), index_col=0)
 
         np.testing.assert_allclose(dfh['slope_deg'], entity.Slope, atol=0.5)
         np.testing.assert_allclose(dfh['aspect_deg'], entity.Aspect, atol=5)
@@ -377,6 +394,9 @@ class TestGIS(unittest.TestCase):
         # From google map checks
         np.testing.assert_allclose(dfh['terminus_lon'], 10.80, atol=0.01)
         np.testing.assert_allclose(dfh['terminus_lat'], 46.81, atol=0.01)
+
+        dfh_c = utils.compile_glacier_hypsometry([gdir])
+        assert dfh.equals(dfh_c)
 
         bins = []
         for c in dfh.columns:
@@ -2225,7 +2245,7 @@ class TestClimate(unittest.TestCase):
         with pytest.raises(RuntimeError):
             mb_calibration_to_rmsd(gdir, ref_df=ref_mb,
                                    calibrate_params=('melt_f',),
-                                   melt_f_min = np.nan)
+                                   melt_f_min=np.nan)
 
         # Some invalid bounds since max > min
         with pytest.raises(RuntimeError):
@@ -2233,7 +2253,7 @@ class TestClimate(unittest.TestCase):
                                    ref_df=ref_mb,
                                    calibrate_params=('temp_bias',),
                                    temp_bias_min=2.0,
-                                   temp_bias_max=-1.0, )
+                                   temp_bias_max=-1.0)
 
         # Impose infinite bounds, which will cause DE to fail
         with pytest.raises(RuntimeError):
@@ -2241,7 +2261,7 @@ class TestClimate(unittest.TestCase):
                                    ref_df=ref_mb,
                                    calibrate_params=('temp_bias',),
                                    temp_bias_min=-np.inf,
-                                   temp_bias_max=np.inf, )
+                                   temp_bias_max=np.inf)
 
         # Test for an acceptably small bias
         np.testing.assert_allclose(0, (mbdf['melt_mb_rmsd'] - mbdf['ref_mb']).mean(), atol=100)

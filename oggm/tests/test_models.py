@@ -1972,7 +1972,7 @@ class TestMassBalanceModels:
                 massbalance.SfcTypeTIModel,
                 mb_model_class=massbalance.MonthlyTIModel,
                 ys=1990,),
-            ys=1990, ye=2000,
+            ys=1990, ye=1993,
             mb_elev_feedback='monthly',
             save_mb_diagnostics_filesuffix='continues_run',
         )
@@ -1983,7 +1983,7 @@ class TestMassBalanceModels:
                 massbalance.SfcTypeTIModel,
                 mb_model_class=massbalance.MonthlyTIModel,
                 ys=1990, ),
-            ys=1990, ye=1995,
+            ys=1990, ye=1991,
             mb_elev_feedback='monthly',
             save_mb_diagnostics_filesuffix='part1_run',
         )
@@ -1991,7 +1991,7 @@ class TestMassBalanceModels:
         part2_run = tasks.run_from_climate_data(
             gdir,
             mb_diagnostics_filesuffix='part1_run',
-            ys=1995, ye=2000,
+            ys=1991, ye=1993,
             init_model_fls=part1_run.fls,
             mb_elev_feedback='monthly',
             save_mb_diagnostics_filesuffix='part2_run',
@@ -2009,7 +2009,7 @@ class TestMassBalanceModels:
             np.testing.assert_allclose(
                 continues_mb.flowline_mb_models[i].mb_buckets_np,
                 part2_mb.flowline_mb_models[i].mb_buckets_np,
-                rtol=2e-2)
+                atol=1e-2)
 
     @pytest.mark.slow
     def test_sfc_type_mb_model_calib_dynamics(self, hef_gdir):

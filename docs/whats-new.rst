@@ -3,8 +3,8 @@
 Version history
 ===============
 
-v1.7.x (not released)
----------------------
+v1.7.x (unreleased)
+-----------------
 
 Enhancements
 ~~~~~~~~~~~~
@@ -16,8 +16,87 @@ Enhancements
   (:pull:`1800`).
   By `Nicolas Gampierakis <https://github.com/gampnico>`_.
 
-v1.6.x (not released)
----------------------
+Bug fixes
+~~~~~~~~~
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+
+v1.6.3 (April 13, 2026)
+-----------------------
+
+This is the final release in the 1.6.x series. It is fully backwards-compatible
+and brings a range of bug fixes, improvements, as well as new and updated
+standard projections. Thanks to the 8 contributors who made this release possible!
+
+The main highlight is a new generation of preprocessed glacier directories,
+including fully operational RGI7 support and ERA5-calibrated directories with climate
+data extending to 2025. New directories including
+`avalanche maps <https://github.com/OGGM/Snowslide>`_ are also available.
+
+Model improvements are plenty: highlights include calving support in the default
+dynamical solver (``SemiImplicitModel``),
+`Glacier3dViz <https://glacier3dviz.oggm.org>`_
+and its ice thickness distribution algorithm, and RGI7 support. See below for a
+comprehensive list of changes.
+
+We also added two new `tutorials <https://tutorials.oggm.org>`_ showcasing the
+new directories, and a third one for glacier runoff sensitivity analysis.
+
+This release was designed to produce only small changes to the standard projections
+released a couple of years ago (v1.6.1), before more substancial changes are coming with 1.7
+and GlacierMIP4.
+See
+`this blogpost <https://oggm.org/2026/01/07/oggm_v16-gdirs-and-projection-options/>`_
+for a broader discussion on new glacier directories and the new projections.
+
+While 1.6.3 was just released, **v1.7 is around the corner.** Several major
+developments are `already in progress <https://github.com/OGGM/oggm/tree/dev>`_,
+including the move of the daily mass balance model to core OGGM and improved
+parameter handling. Stay tuned for more coming soon!
+
+.. _preprodirupdates:
+
+New preprocessed directories
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The new default directories are mostly a data-quality and "behind-the-scenes"
+improvement over the previous ones, but with some notable differences:
+
+- the map projection was changed from "local mercator" to UTM. This has a
+  very minor influence on glacier grids and geometries (with slightly larger
+  distortions near UTM zone boundaries)
+- the default topography dataset is now COPDEM (almost) globally
+  (previously NASADEM in mid-latitudes)
+- ERA5 directories now include data up to 2025
+- RGI7 directories are now available with a full workflow
+- the ``_w_data`` folders now include additional datasets: ITS_LIVE v2,
+  Cook et al. (2023, Alps only), and GlaThiDa. Bugs in some datasets
+  (Hugonnet, Millan) have also been corrected
+- new directories including avalanche maps are available
+- other general enhancements and bug fixes that are listed below
+
+By design, the new directories lead to very similar results to the previous
+(OGGM v1.6.1) ones, with small differences mainly due to topography updates
+and bug fixes. Larger differences may arise when using the new ERA5 or RGI7
+directories, but these remain much smaller than those resulting from different
+calibration choices or model structures. See
+`this blogpost <https://oggm.org/2026/01/07/oggm_v16-gdirs-and-projection-options/>`_
+for a summary.
+
+Contributors
+~~~~~~~~~~~~
+
+Thanks to all contributors to this release:
+`Nicolas Gampierakis <https://github.com/gampnico>`_,
+`Dan Goldberg <https://github.com/dngoldberg>`_,
+`Chloe Hancock <https://github.com/chloe-hancock>`_,
+`Marin Kneib <https://github.com/MarinKneib>`_,
+`Fabien Maussion <https://github.com/fmaussion>`_,
+`Patrick Schmitt <https://github.com/pat-schmitt>`_,
+`Lilian Schuster <https://github.com/lilianschuster>`_, and
+`Beatriz Recinos <https://github.com/bearecinos>`_!
 
 Enhancements
 ~~~~~~~~~~~~
@@ -34,8 +113,6 @@ Enhancements
   ``dis_from_border``, ...) to define this ranking, providing greater flexibility
   and control over how the melting sequence is visualized (:pull:`1746`).
   By `Patrick Schmitt <https://github.com/pat-schmitt>`_
-- Changed COPDEM data source (again) - this comes with good sides (:pull:`1773`).
-  By `Fabien Maussion <https://github.com/fmaussion>`_
 - Added BedMachine products to the shop (:pull:`1753`).
   By `Fabien Maussion <https://github.com/fmaussion>`_
 - Updated itslive velocity products to v2 (:pull:`1753`).
@@ -47,7 +124,7 @@ Enhancements
   it's just a placeholder (:pull:`1757`).
   By `Dan Goldberg <https://github.com/dngoldberg>`_ and
   `Fabien Maussion <https://github.com/fmaussion>`_.
-- Added the ability to use an incomplete version of the full params.cfg file
+- Added the ability to use an incomplete version of the full `params.cfg` file
   to override some default parameter values. This can be done by providing the
   file during initialization with ``cfg.initialize(file=mini_params_filepath)``
   (:pull:`1776`).
@@ -61,10 +138,6 @@ Enhancements
   ``workflow.merge_gridded_data``. If no grid is provided, the default is to
   merge all grids of the provided gdirs (:pull:`1779`).
   By `Patrick Schmitt <https://github.com/pat-schmitt>`_
-- A new global task (`glathida.compile_glathida_on_grid`) is available to generate
-  big tables that can be used for e.g. ML workflows for ice thickness estimation
-  (:pull:`1782`).
-  By `Fabien Maussion <https://github.com/fmaussion>`_
 - Flowlines shapefiles output now have more attributes and are easier to
   use (:pull:`1786`).
   By `Fabien Maussion <https://github.com/fmaussion>`_
@@ -93,7 +166,23 @@ Enhancements
 - Added a new way to calibrate the mass balance model with MB
   timeseries (:pull:`1827`).
   By `Chloe Hancock <https://github.com/chloe-hancock>`_
-
+- SemiImplicitModel (the default dynamical solver in OGGM) now also
+  supports calving like FluxBasedModel does (:pull:`1858`). Inversion
+  with calving remains poorly supported / untested since v1.6 series,
+  but this is an important step to re-offer a full calving workflow in
+  OGGM core. By `Beatriz Recinos <https://github.com/bearecinos>`_
+- Refactored installation. Pip installations now accept optional dependencies,
+  and no longer requires dedicated yaml files. Added support for `uv`.
+  (:pull:`1849`).
+  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
+- Added CI workflow for new releases (:pull:`1867`).
+  By `Nicolas Gampierakis <https://github.com/gampnico>`_
+- Added the option to compute hypsometries as part of the preprocessing CLI.
+  Previously this would have been a separate step (:pull:`1872`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+- Generated and documented new preprocessed directories including
+  contributions from avalanches (:pull:`1877`).
+  By `Marin Kneib <https://github.com/MarinKneib>`_
 
 Bug fixes
 ~~~~~~~~~
@@ -114,6 +203,20 @@ Bug fixes
 - Changed COPDEM data source (again) - this comes with good sides as the download
   is much easier now (:pull:`1773`).
   By `Fabien Maussion <https://github.com/fmaussion>`_
+- Fixed an issue in how we stored the `dem.tif` files in the pre-procecessed
+  directories, which meant that some files could take as much as 4 times more
+  space as necessary (:issue:`1856`). In total this leads to pre-processed
+  files roughly 20-40% larger than the previous versions, which unfortunately
+  impacts some of the glacier directories created for this release.
+  See also :issue:`1864` for a more pervasive continuation of the issue and
+  why gdirs still remain larger *after* the fix.
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+- Fixed ``ModuleNotFoundError`` caused by calling ``distutils`` which has been
+  deprecated since Python 3.12. Reimplements ``strtobool`` natively.
+  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
+- Removed deprecated ``pkg_resources`` module as this was removed from
+  Python 3.12 and setuptools 82.0 (:pull:`1875`).
+  By `Nicolas Gampierakis <https://github.com/gampnico>`_.
 
 Breaking changes
 ~~~~~~~~~~~~~~~~
@@ -123,8 +226,9 @@ break some code, but remain minor in nature:
 
 - `PARAMS['use_winter_prcp_fac']` `cfg.PARAMS['use_temp_bias_from_file']` have been replaced
   by explicit calls in code (:pull:`1816`). In general, parameters that indicate whether
-  an action should be taken or not in a workflow should not be a parameter in the first place.
-  There are several other instances of this in OGGM, to be reviewed.
+  an action should be taken or not in a workflow should never have been a parameter
+  in the first place. There are several other instances of this in OGGM, that will be
+  reviewed in 1.7.
   By `Fabien Maussion <https://github.com/fmaussion>`_.
 - Changed to the default in `distribute_thickness_per_altitude` to *not* smooth the
   resulting thickness fields. This would yield to weird effects at glacier boundaries
@@ -142,7 +246,7 @@ full reproducibility of existing results. The previous 1.6 preprocessed
 directories are still compatible and can be used with this version.
 Some bugs have been fixed however (see below), and if they matter to you,
 you may have to reprocess the data yourself or be patient (we aim to
-publish a "final" 1.6.X release before the end of the year, which will comprise
+publish a "final" 1.6.X release sometime soon, which will comprise
 updated preprocessed repositories, including a working version of RGI7
 repositories).
 
@@ -207,6 +311,10 @@ Enhancements
   By `Fabien Maussion <https://github.com/fmaussion>`_
 - Added the rgi7g_to_complex task which adds a mask of glacier
   entities in the glacier complex glacier dirs (:pull:`1736`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
+- A new global task (`glathida.compile_glathida_on_grid`) is available to generate
+  big tables that can be used for e.g. ML workflows for ice thickness estimation
+  (:pull:`1782`).
   By `Fabien Maussion <https://github.com/fmaussion>`_
 
 Bug fixes

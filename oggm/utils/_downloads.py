@@ -68,7 +68,7 @@ logger = logging.getLogger('.'.join(__name__.split('.')[:-1]))
 # The given commit will be downloaded from github and used as source for
 # all sample data
 SAMPLE_DATA_GH_REPO = 'OGGM/oggm-sample-data'
-SAMPLE_DATA_COMMIT = '905430969c704c3ccd459c153f25bc1b9340af5b'
+SAMPLE_DATA_COMMIT = '8af40f89620c6bd72f3485a777a018dcacb99d94'
 
 # Recommended url for runs
 DEFAULT_BASE_URL = ('https://cluster.klima.uni-bremen.de/~oggm/gdirs/oggm_v1.6/'
@@ -1812,11 +1812,11 @@ def _get_rgi_dir_unlocked(version=None, reset=False):
     test_file = os.path.join(rgi_dir, f'*_rgi*{version}_manifest.txt')
 
     if version == '50':
-        dfile = 'http://www.glims.org/RGI/rgi50_files/rgi50.zip'
+        dfile = 'https://cluster.klima.uni-bremen.de/~oggm/rgi/www.glims.org/RGI/rgi50_files/rgi50.zip'
     elif version == '60':
-        dfile = 'http://www.glims.org/RGI/rgi60_files/00_rgi60.zip'
+        dfile = 'https://cluster.klima.uni-bremen.de/~oggm/rgi/www.glims.org/RGI/rgi60_files/rgi60.zip'
     elif version == '61':
-        dfile = 'https://cluster.klima.uni-bremen.de/data/rgi/rgi_61.zip'
+        raise InvalidParamsError('You should use RGI62 instead of 61.')
     elif version == '62':
         dfile = 'https://cluster.klima.uni-bremen.de/~oggm/rgi/rgi62.zip'
     elif version == '70G':
@@ -1898,7 +1898,8 @@ def get_rgi_glacier_entities(rgi_ids, version=None):
     rgi_ids : list of str
         the glaciers you want the outlines for
     version : str
-        the rgi version ('62', '70G', '70C')
+        the rgi version ('62', '70G', '70C'). Tries to infer
+        from the ID and defaults to cfg.PARAMS if unsure.
 
     Returns
     -------
@@ -1909,7 +1910,7 @@ def get_rgi_glacier_entities(rgi_ids, version=None):
     if version is None:
         if len(rgi_ids[0]) == 14:
             # RGI6
-            version = rgi_ids[0].split('-')[0][-2:]
+            version = cfg.PARAMS['rgi_version']
         else:
             # RGI7 RGI2000-v7.0-G-02-00003
             assert rgi_ids[0].split('-')[1] == 'v7.0'

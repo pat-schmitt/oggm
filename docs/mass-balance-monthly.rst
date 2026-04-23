@@ -43,17 +43,21 @@ Calibration
    order to adapt it for their own purposes.
 
 Visit the new `mass balance calibration tutorial <https://tutorials.oggm.org/master/notebooks/tutorials/massbalance_calibration.html>`_
-for an overview.
+for a complete overview.
 
 Notes
 -----
 
-Although this mass balance model is a clear improvement to previous OGGM versions
+Although the 1.6 mass balance model is a clear improvement to previous OGGM versions
 (mostly, for better using observations and for getting rid of the
 residual parameter :math:`\epsilon`), more physical approaches are possible.
-Importantly, we need to take the uncertainty estimates into account, and
-we need to tackle the issue of daily data for hydrological models.
 
-More exigent users might have a look at `PyGEM <https://github.com/PyGEM-Community/PyGEM>`_
-or the `OGGM dev branch <https://github.com/OGGM/oggm/tree/dev>`_ (included parts of the features of the `OGGM massbalance-sandbox <https://github.com/OGGM/massbalance-sandbox>`_) which are
-offering clever ways to deal with these issues.
+More exigent users might have a look at
+`PyGEM <https://github.com/PyGEM-Community/PyGEM>`_
+or the `OGGM dev branch <https://github.com/OGGM/oggm/tree/dev>`_
+(which includes features from the `OGGM massbalance-sanbox <https://github.com/OGGM/massbalance-sandbox>`_)
+which are offering clever ways to deal with daily data, snow cover processes, etc.
+
+Avalanche maps have recently been added to the new OGGM glacier directories, to be able to account for the contribution
+of avalanches to glacier mass balance - check out the `new OGGM tutorial <https://github.com/OGGM/tutorials/tree/master/notebooks/tutorials>`_
+or directly the `OGGM avalanche repo <https://github.com/OGGM/Snowslide>`_ to get more insights on this!
