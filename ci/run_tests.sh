@@ -31,6 +31,7 @@ fi
 $PIP install --upgrade coverage coveralls git+https://github.com/fmaussion/salem.git
 $PIP install -e .
 python -c "import xdist" 2>/dev/null || $PIP install pytest-xdist
+python -c "import ilock" 2>/dev/null || $PIP install ilock
 
 export COVERAGE_RCFILE="$PWD/.coveragerc"
 
