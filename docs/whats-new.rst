@@ -199,6 +199,16 @@ Bug fixes
   dispatched to a worker process. They are now dropped before pickling and
   rebuilt from disk in the worker instead (:pull:`1967`).
   By `Patrick Schmitt <https://github.com/pat-schmitt>`_
+- Fixed a size regression in the glacier directories: each ``Flowline``
+  kept a reference to the model settings, and with it a shallow copy of
+  ``cfg.PARAMS``, which holds ``intersects_gdf`` - a region-wide table.
+  A flowline only ever needed two of those parameters, so ``Flowline`` now stores
+  ``min_ice_thick_for_length`` and ``glacier_length_method`` directly and no
+  longer has a ``settings`` attribute. They are read from the glacier settings
+  (or from ``cfg.PARAMS`` when the flowline is built without a glacier
+  directory) when the flowline is created, and can be overridden per flowline
+  by setting the attributes (:pull:`1979`).
+  By `Fabien Maussion <https://github.com/fmaussion>`_
 - Model constructors no longer silently persist a non-default ``temp_melt`` to
   the gdir settings file. ``check_calib_params`` now validates the effective
   model parameters instead of the settings file, and calibration tasks record

@@ -572,11 +572,11 @@ class TestMassBalanceModels:
             - prcp_fac: 2.50
             - temp_bias: 0.00
             - bias: 0.00
-            - settings_filesuffix: 
+            - settings_filesuffix:\x20
             - ice_density: 900.0
             - use_leap_years: False
             - filename: climate_historical
-            - input_filesuffix: 
+            - input_filesuffix:\x20
             - temp_all_solid: 0.0
             - temp_all_liq: 2.0
             - temp_melt: -1.0
@@ -639,7 +639,7 @@ class TestMassBalanceModels:
             - use_leap_years: True
             - mb_model_class: MonthlyTIModel
             - filename: climate_historical
-            - input_filesuffix: 
+            - input_filesuffix:\x20
             - bias: 0.0
             - ye: 2002
             - aging_frequency: monthly
@@ -3661,16 +3661,16 @@ class TestModelFlowlines():
         assert rec.length_m == full_l
         assert rec.terminus_index == nx - 1
 
-        rec.settings['glacier_length_method'] = 'consecutive'
+        rec.glacier_length_method = 'consecutive'
         assert rec.length_m == full_l
         assert rec.terminus_index == nx - 1
 
-        rec.settings['min_ice_thick_for_length'] = 1
+        rec.min_ice_thick_for_length = 1
         rec.thick = rec.thick * 0 + 0.5
         assert rec.length_m == 0
         assert rec.terminus_index == -1
 
-        rec.settings['glacier_length_method'] = 'naive'
+        rec.glacier_length_method = 'naive'
         assert rec.length_m == 0
         assert rec.terminus_index == -1
 
@@ -3680,7 +3680,7 @@ class TestModelFlowlines():
         assert rec.length_m == full_l - map_dx
         assert rec.terminus_index == nx - 1
 
-        rec.settings['glacier_length_method'] = 'consecutive'
+        rec.glacier_length_method = 'consecutive'
         assert rec.length_m == 1000
         assert rec.terminus_index == 9
 
