@@ -1,0 +1,86 @@
+{
+ "wall_s": {
+  "calibration MonthlyTIModel": 0.07347786800005451,
+  "calibration SfcTypeTIModel": 1.3219741580001028,
+  "dynamic monthly-feedback MonthlyTIModel": 0.6756389429999672,
+  "dynamic monthly-feedback SfcTypeTIModel": 1.273214643000074,
+  "dynamic annual-feedback SfcTypeTIModel": 1.1230374100000518
+ },
+ "calibration": {
+  "n_steps": 10872,
+  "wall_total_s": 1.4307350999999926,
+  "steps_total_s": 1.3269952489883963,
+  "us_per_step": 122.05622231313431,
+  "run_until_total_s": 1.110857913001837,
+  "parts_s": {
+   "climate lookup (get_monthly_climate)": 0.35946205200150416,
+   "date bookkeeping (floatyear/date conversions)": 0.08317806655292631,
+   "aging (_bucket_aging)": 0.12081599200553228,
+   "bucket update + python overhead (rest of step)": 0.7635391384284336
+  },
+  "parts_us_per_step": {
+   "climate lookup (get_monthly_climate)": 33.06310264914497,
+   "date bookkeeping (floatyear/date conversions)": 7.650668373153634,
+   "aging (_bucket_aging)": 11.112582046130637,
+   "bucket update + python overhead (rest of step)": 70.22986924470507
+  }
+ },
+ "dynamic_monthly": {
+  "n_steps": 1764,
+  "wall_total_s": 1.4714421539999876,
+  "steps_total_s": 0.3089816420011857,
+  "us_per_step": 175.1596609984046,
+  "run_until_total_s": 0.29673510100258227,
+  "parts_s": {
+   "climate lookup (get_monthly_climate)": 0.08253884899886543,
+   "date bookkeeping (floatyear/date conversions)": 0.01889159000064788,
+   "aging (_bucket_aging)": 0.027581448998148517,
+   "bucket update + python overhead (rest of step)": 0.17996975400352389
+  },
+  "parts_us_per_step": {
+   "climate lookup (get_monthly_climate)": 46.790730724980406,
+   "date bookkeeping (floatyear/date conversions)": 10.709518140956849,
+   "aging (_bucket_aging)": 15.63574206244247,
+   "bucket update + python overhead (rest of step)": 102.02367007002488
+  }
+ },
+ "dynamic_annual": {
+  "n_steps": 1764,
+  "wall_total_s": 1.1674163349999844,
+  "steps_total_s": 0.23617770899682,
+  "us_per_step": 133.8875901342517,
+  "run_until_total_s": 0.21464827900081218,
+  "parts_s": {
+   "climate lookup (get_monthly_climate)": 0.06357133000392423,
+   "date bookkeeping (floatyear/date conversions)": 0.01463258503272331,
+   "aging (_bucket_aging)": 0.020896256995229123,
+   "bucket update + python overhead (rest of step)": 0.13707753696494335
+  },
+  "parts_us_per_step": {
+   "climate lookup (get_monthly_climate)": 36.038168936464984,
+   "date bookkeeping (floatyear/date conversions)": 8.295116231702558,
+   "aging (_bucket_aging)": 11.84595067756753,
+   "bucket update + python overhead (rest of step)": 77.70835428851663
+  }
+ },
+ "cprofile": {
+  "calibration": {
+   "wall_profiled_s": 2.0589251069999364,
+   "cumtime_s": {
+    "get_annual_mb (all classes)": 1.634053994,
+    "sfc _init_buckets (spinup)": 0.333370382,
+    "sfc step": 1.887769937
+   }
+  },
+  "dynamic_monthly": {
+   "wall_profiled_s": 1.938300408000032,
+   "cumtime_s": {
+    "flowline run_until_and_store": 1.8532031000000002,
+    "flowline step (all classes)": 1.740904242,
+    "sfc _init_buckets (spinup)": 0.037338,
+    "sfc step": 0.377395111,
+    "get_monthly_mb (all classes)": 0.548450152
+   }
+  }
+ }
+}

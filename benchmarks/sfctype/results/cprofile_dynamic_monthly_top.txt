@@ -1,0 +1,40 @@
+Fri Nov  6 21:15:05 2026    /home/user/oggm/benchmarks/sfctype/results/cprofile_dynamic_monthly.prof
+
+         1265850 function calls (1263705 primitive calls) in 1.938 seconds
+
+   Ordered by: internal time
+   List reduced from 1026 to 30 due to restriction <30>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+     2973    0.450    0.000    1.741    0.001 /home/user/oggm/oggm/core/flowline.py:2214(step)
+     8919    0.130    0.000    0.173    0.000 /home/user/oggm/oggm/core/flowline.py:601(section)
+    28605    0.119    0.000    0.129    0.000 /home/user/oggm/oggm/core/flowline.py:578(widths_m)
+     1764    0.103    0.000    0.368    0.000 /home/user/oggm/oggm/core/massbalance.py:1951(_apply_climate_step_and_aging_to_buckets)
+    18900    0.100    0.000    0.191    0.000 /home/user/oggm/oggm/core/flowline.py:591(section)
+    17307    0.073    0.000    0.099    0.000 /home/user/oggm/oggm/utils/_funcs.py:853(_floatyear_to_date_scalar)
+    31292    0.066    0.000    0.066    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+     9007    0.043    0.000    0.102    0.000 /home/user/oggm/oggm/core/flowline.py:875(_seconds_to_yr)
+    17881    0.041    0.000    0.082    0.000 /usr/local/lib/python3.13/site-packages/numpy/lib/_function_base_impl.py:5592(append)
+     1548    0.025    0.000    0.544    0.000 /home/user/oggm/oggm/core/massbalance.py:2472(get_monthly_mb)
+    15253    0.024    0.000    0.051    0.000 /usr/local/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:66(_wrapreduction)
+     1764    0.023    0.000    0.108    0.000 /home/user/oggm/oggm/core/massbalance.py:860(get_monthly_climate)
+    17309    0.023    0.000    0.134    0.000 /home/user/oggm/oggm/utils/_funcs.py:887(floatyear_to_date)
+     1765    0.023    0.000    0.023    0.000 {method 'cumsum' of 'numpy.ndarray' objects}
+     3312    0.023    0.000    0.061    0.000 /home/user/oggm/oggm/utils/_funcs.py:1159(get_days_of_month)
+     1764    0.019    0.000    0.044    0.000 /home/user/oggm/oggm/core/massbalance.py:805(_get_climate_for_index)
+     8919    0.018    0.000    0.636    0.000 /home/user/oggm/oggm/core/flowline.py:1056(get_mb)
+    24051    0.018    0.000    0.018    0.000 /home/user/oggm/oggm/core/flowline.py:154(surface_h)
+     2070    0.017    0.000    0.017    0.000 /home/user/oggm/oggm/core/massbalance.py:1830(buckets_thickness_m)
+        3    0.017    0.006    0.037    0.012 /home/user/oggm/oggm/core/massbalance.py:478(__init__)
+     1764    0.016    0.000    0.036    0.000 /home/user/oggm/oggm/core/massbalance.py:2236(_bucket_aging)
+    17881    0.016    0.000    0.033    0.000 /usr/local/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:1917(ravel)
+     3406    0.015    0.000    0.016    0.000 /home/user/oggm/oggm/utils/_funcs.py:790(_is_leap_year_vec)
+     9009    0.014    0.000    0.014    0.000 {method 'searchsorted' of 'numpy.ndarray' objects}
+     9711    0.014    0.000    0.014    0.000 /home/user/oggm/oggm/core/flowline.py:150(thick)
+       43    0.013    0.000    1.771    0.041 /home/user/oggm/oggm/core/flowline.py:1155(run_until)
+    27793    0.012    0.000    0.015    0.000 /usr/local/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:3520(ndim)
+    98040    0.012    0.000    0.012    0.000 /home/user/oggm/oggm/core/flowline.py:145(thick)
+     1764    0.011    0.000    0.011    0.000 /home/user/oggm/oggm/core/massbalance.py:801(_get_prcpsol)
+     2077    0.011    0.000    0.028    0.000 /home/user/oggm/oggm/utils/_funcs.py:813(date_to_floatyear)
+
+

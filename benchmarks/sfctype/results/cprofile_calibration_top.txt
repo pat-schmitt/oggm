@@ -1,0 +1,40 @@
+Fri Nov  6 21:15:03 2026    /home/user/oggm/benchmarks/sfctype/results/cprofile_calibration.prof
+
+         1322455 function calls (1321649 primitive calls) in 2.059 seconds
+
+   Ordered by: internal time
+   List reduced from 604 to 30 due to restriction <30>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+    10872    0.501    0.000    1.846    0.000 /home/user/oggm/oggm/core/massbalance.py:1951(_apply_climate_step_and_aging_to_buckets)
+    88273    0.208    0.000    0.208    0.000 {method 'reduce' of 'numpy.ufunc' objects}
+    33608    0.128    0.000    0.179    0.000 /home/user/oggm/oggm/utils/_funcs.py:853(_floatyear_to_date_scalar)
+    10872    0.111    0.000    0.566    0.000 /home/user/oggm/oggm/core/massbalance.py:860(get_monthly_climate)
+    10875    0.101    0.000    0.101    0.000 {method 'cumsum' of 'numpy.ndarray' objects}
+    10872    0.097    0.000    0.221    0.000 /home/user/oggm/oggm/core/massbalance.py:805(_get_climate_for_index)
+    10872    0.068    0.000    0.165    0.000 /home/user/oggm/oggm/core/massbalance.py:2236(_bucket_aging)
+    10872    0.057    0.000    0.057    0.000 /home/user/oggm/oggm/core/massbalance.py:801(_get_prcpsol)
+    33608    0.044    0.000    0.257    0.000 /home/user/oggm/oggm/utils/_funcs.py:887(floatyear_to_date)
+    78376    0.043    0.000    0.061    0.000 /usr/local/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:3520(ndim)
+    10872    0.043    0.000    0.131    0.000 /home/user/oggm/oggm/utils/_funcs.py:1159(get_days_of_month)
+    21744    0.037    0.000    0.075    0.000 /usr/local/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:86(_wrapreduction_any_all)
+    10872    0.037    0.000    1.888    0.000 /home/user/oggm/benchmarks/sfctype/profile_reference.py:51(_apply_climate_step_and_aging_to_buckets)
+    58319    0.034    0.000    0.034    0.000 {built-in method numpy.asarray}
+    10872    0.033    0.000    0.033    0.000 /usr/local/lib/python3.13/site-packages/numpy/_core/_methods.py:96(_clip)
+    11118    0.033    0.000    0.089    0.000 /home/user/oggm/oggm/utils/_funcs.py:813(date_to_floatyear)
+    10872    0.028    0.000    0.028    0.000 /home/user/oggm/oggm/core/massbalance.py:796(_get_tempformelt)
+    54608    0.028    0.000    0.187    0.000 {method 'sum' of 'numpy.ndarray' objects}
+    21771    0.024    0.000    0.024    0.000 {method 'copy' of 'numpy.ndarray' objects}
+    10872    0.022    0.000    0.030    0.000 /usr/local/lib/python3.13/site-packages/numpy/_core/numeric.py:170(ones)
+    54608    0.020    0.000    0.159    0.000 /usr/local/lib/python3.13/site-packages/numpy/_core/_methods.py:47(_sum)
+    21744    0.018    0.000    0.092    0.000 /usr/local/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:2474(any)
+        3    0.018    0.006    0.035    0.012 /home/user/oggm/oggm/core/massbalance.py:478(__init__)
+    10872    0.016    0.000    0.069    0.000 /usr/local/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:2245(clip)
+    10878    0.016    0.000    0.016    0.000 /home/user/oggm/oggm/utils/_funcs.py:798(_date_to_floatyear_scalar)
+    67320    0.014    0.000    0.014    0.000 {built-in method builtins.min}
+      744    0.013    0.000    1.632    0.002 /home/user/oggm/oggm/core/massbalance.py:2388(get_annual_mb)
+    67259    0.013    0.000    0.013    0.000 {built-in method builtins.max}
+    78376    0.011    0.000    0.011    0.000 /usr/local/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:3516(_ndim_dispatcher)
+    10980    0.010    0.000    0.053    0.000 /usr/local/lib/python3.13/site-packages/numpy/_core/fromnumeric.py:48(_wrapfunc)
+
+
