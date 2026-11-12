@@ -2780,14 +2780,14 @@ class TestMassBalanceModels:
 
         mb_mod = massbalance.SfcTypeTIModel(
             gdir, climate_resolution='monthly',
-            aging_frequency=aging_frequency, ys=2000,
+            aging_frequency=aging_frequency, ys=1995,
             snow_density=gdir.settings['ice_density'],
             check_calib_params=False)
         rho = mb_mod.ice_density
         assert np.all(mb_mod._density_buckets_np == rho)
 
         ice_bucket_max = 0
-        for yr in utils.float_years_timeseries(2000, 2004)[:-1]:
+        for yr in utils.float_years_timeseries(1995, 1999)[:-1]:
             mb_mod.get_monthly_mb(h, year=yr)
             ice_bucket_max = max(ice_bucket_max,
                                  np.max(mb_mod.mb_buckets_np[:, -1]))
