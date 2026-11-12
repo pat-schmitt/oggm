@@ -1379,7 +1379,9 @@ class FlowlineModel(object):
                 diag_ds['volume_ice_m3'].attrs['unit'] = 'm 3'
 
                 diag_ds['volume_firn_m3'] = ('time', np.zeros(nm) * np.nan)
-                diag_ds['volume_firn_m3'].attrs['description'] = 'Total snow and firn volume'
+                diag_ds['volume_firn_m3'].attrs['description'] = (
+                    'Total volume of snow, firn and ice formed at the last '
+                    'aging step')
                 diag_ds['volume_firn_m3'].attrs['unit'] = 'm 3'
 
         if 'volume_bsl' in ovars:
@@ -1428,7 +1430,9 @@ class FlowlineModel(object):
                 diag_ds['mass_ice_kg'].attrs['unit'] = 'kg'
 
                 diag_ds['mass_firn_kg'] = ('time', np.zeros(nm) * np.nan)
-                diag_ds['mass_firn_kg'].attrs['description'] = 'Total snow and firn mass'
+                diag_ds['mass_firn_kg'].attrs['description'] = (
+                    'Total mass of snow, firn and ice formed at the last '
+                    'aging step')
                 diag_ds['mass_firn_kg'].attrs['unit'] = 'kg'
 
         if 'calving' in ovars:
@@ -1513,7 +1517,9 @@ class FlowlineModel(object):
                         ds['volume_ice_m3'].attrs['unit'] = 'm 3'
 
                         ds['volume_firn_m3'] = (('time', 'dis_along_flowline'), sect * np.nan)
-                        ds['volume_firn_m3'].attrs['description'] = 'Section snow and firn volume'
+                        ds['volume_firn_m3'].attrs['description'] = (
+                            'Section volume of snow, firn and ice formed at '
+                            'the last aging step')
                         ds['volume_firn_m3'].attrs['unit'] = 'm 3'
                 if 'volume_bsl' in ovars_fl:
                     ds['volume_bsl_m3'] = (('time', 'dis_along_flowline'), sect * 0)
@@ -1539,7 +1545,8 @@ class FlowlineModel(object):
 
                         ds['thickness_firn_m'] = (('time', 'dis_along_flowline'), width * np.nan)
                         ds['thickness_firn_m'].attrs['description'] = (
-                            'Section snow and firn thickness')
+                            'Section thickness of snow, firn and ice formed '
+                            'at the last aging step')
                         ds['thickness_firn_m'].attrs['unit'] = 'm'
                 if 'mass' in ovars_fl:
                     ds['mass_kg'] = (('time', 'dis_along_flowline'), sect * 0)
@@ -1552,7 +1559,9 @@ class FlowlineModel(object):
                         ds['mass_ice_kg'].attrs['unit'] = 'm 3'
 
                         ds['mass_firn_kg'] = (('time', 'dis_along_flowline'), sect * 0)
-                        ds['mass_firn_kg'].attrs['description'] = 'Section snow and firn mass'
+                        ds['mass_firn_kg'].attrs['description'] = (
+                            'Section mass of snow, firn and ice formed at '
+                            'the last aging step')
                         ds['mass_firn_kg'].attrs['unit'] = 'kg'
                 if 'ice_velocity' in ovars_fl:
                     if not (hasattr(self, '_surf_vel_fac') or hasattr(self, 'u_stag')):

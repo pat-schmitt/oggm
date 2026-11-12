@@ -1774,7 +1774,11 @@ class SfcTypeTIModel(MassBalanceModel):
     @property
     def mb_buckets(self):
         # returns current snow and firn buckets, but not the ice bucket,
-        # for ice look at ice_mb
+        # for ice look at ice_mb. Note: the ice bucket can still hold the ice
+        # formed at the last aging step (handed over via ice_mb in the next
+        # climate step). Restarting a model from mb_buckets (via
+        # spinup_buckets) therefore drops this pending ice, while
+        # save_to_file / load_from_file keep it.
         return pd.DataFrame(self.mb_buckets_np[:, :-1],
                             index=self.buckets_grid_point_label,
                             columns=self.buckets[:-1],)
@@ -1824,16 +1828,26 @@ class SfcTypeTIModel(MassBalanceModel):
 
     @property
     def columns_thickness_m(self):
-        # total thickness of all snow and firn buckets, ignoring ice bucket
-        return np.sum(self.buckets_thickness_m, axis=1)
+        # total thickness of all snow and firn buckets, plus the ice formed at
+        # the last aging step. This ice is still in the ice bucket (it is
+        # handed over to the dynamical model via ice_mb in the next climate
+        # step) and is included here with the ice density, consistent with
+        # columns_mass_kg_per_sqm. Without it, the mass would be counted in
+        # neither the firn nor the ice volume until the next climate step.
+        return (np.sum(self.buckets_thickness_m, axis=1) +
+                self.mb_buckets_np[:, -1] / self._density_buckets_np[0, -1])
 
     @property
     def buckets_thickness_m(self):
-        # individual thickness of each bucket, ignoring ice bucket
+        # individual thickness of each snow and firn bucket, ignoring the ice
+        # bucket (see columns_thickness_m for the column total including the
+        # ice formed at the last aging step)
         return self.mb_buckets_np[:, :-1] / self._density_buckets_np[:, :-1]
 
     @property
     def columns_mass_kg_per_sqm(self):
+        # total mass of all buckets, including the ice formed at the last
+        # aging step which is still in the ice bucket (see columns_thickness_m)
         return np.sum(self.mb_buckets_np, axis=1)
 
     @property

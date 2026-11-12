@@ -2765,6 +2765,66 @@ class TestMassBalanceModels:
         model_elev.run_until(2020)
         assert_allclose(model_elev.total_mass, model_elev.volume_ice_m3, rtol=1e-3)
 
+    @pytest.mark.parametrize('aging_frequency', ['monthly', 'annual'])
+    def test_sfc_type_thickness_includes_pending_ice(self, hef_gdir,
+                                                     aging_frequency):
+        """The ice formed at the last aging step waits in the ice bucket until
+        it is handed over via ice_mb in the next climate step. It must be
+        counted in columns_thickness_m, consistent with
+        columns_mass_kg_per_sqm. With all bucket densities equal to the ice
+        density, mass / ice_density must equal the thickness at all times.
+        """
+        gdir = hef_gdir
+        init_present_time_glacier(gdir)
+        h = gdir.read_store('inversion_flowlines')[-1].surface_h
+
+        mb_mod = massbalance.SfcTypeTIModel(
+            gdir, climate_resolution='monthly',
+            aging_frequency=aging_frequency, ys=2000,
+            snow_density=gdir.settings['ice_density'],
+            check_calib_params=False)
+        rho = mb_mod.ice_density
+        assert np.all(mb_mod._density_buckets_np == rho)
+
+        ice_bucket_max = 0
+        for yr in utils.float_years_timeseries(2000, 2004)[:-1]:
+            mb_mod.get_monthly_mb(h, year=yr)
+            ice_bucket_max = max(ice_bucket_max,
+                                 np.max(mb_mod.mb_buckets_np[:, -1]))
+            assert_allclose(mb_mod.columns_mass_kg_per_sqm / rho,
+                            mb_mod.columns_thickness_m,
+                            rtol=1e-12, atol=1e-10)
+        # make sure the test covers the case of pending ice
+        assert ice_bucket_max > 0
+
+    @pytest.mark.slow
+    @pytest.mark.parametrize('aging_frequency', ['monthly', 'annual'])
+    def test_sfc_type_dynamic_volume_includes_pending_ice(self, hef_gdir,
+                                                          aging_frequency):
+        """Dynamic run: with all bucket densities equal to the ice density,
+        mass_kg / ice_density must equal volume_m3 at every date (the ice
+        formed at the last aging step must not be missing from the volume).
+        """
+        gdir = hef_gdir
+        init_present_time_glacier(gdir)
+        fls = gdir.read_store('model_flowlines')
+
+        mb = massbalance.MultipleFlowlineMassBalance(
+            gdir, fls=fls, mb_model_class=massbalance.SfcTypeTIModel,
+            ys=1970, aging_frequency=aging_frequency,
+            snow_density=gdir.settings['ice_density'],
+            check_calib_params=False)
+        model = FluxBasedModel(fls, mb_model=mb, y0=1970, gdir=gdir)
+        pending_max = 0
+        for yr in range(1971, 1981):
+            model.run_until(yr)
+            pending = sum(np.sum(m.mb_buckets_np[:, -1] * fl.bin_area_m2)
+                          for m, fl in zip(mb.flowline_mb_models, model.fls))
+            pending_max = max(pending_max, pending)
+            assert_allclose(model.mass_kg / model.ice_density,
+                            model.volume_m3, rtol=1e-10)
+        assert pending_max > 0
+
     def test_constant_mb_model(self, hef_gdir):
 
         rho = cfg.PARAMS['ice_density']
